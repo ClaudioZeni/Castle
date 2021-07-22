@@ -1,6 +1,6 @@
 
-# using Pkg
-# Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
+using Pkg
+Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
 
 using ACE: alloc_B, alloc_temp, evaluate!,alloc_dB, alloc_temp_d, evaluate_d!
 using NeighbourLists: maxneigs
@@ -26,8 +26,10 @@ end
 
 function sum_descriptor_traj(basis, traj)
     A_all = Array{Float64, 2}(undef, length(traj), length(basis)) 
+    for i in 1:length(traj)
         atoms = traj[i].at
         A_all[i, :] = sum_descriptor(basis, atoms)
+    end
     return A_all
 end
 
@@ -64,10 +66,12 @@ end
 
 function sum_d_descriptor_traj(basis, traj)
     dA_all = []
+    for i in 1:length(traj)
         atoms = traj[i].at
         XF = sum_d_descriptor(basis, atoms);
         XF = hcat([collect(Iterators.flatten(a)) for a in XF]...)
         push!(dA_all, XF)
+    end
     return dA_all
 end
 
