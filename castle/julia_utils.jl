@@ -92,24 +92,16 @@ function predict_potential(ridge_pred, XE_tst, XF_tst)
     return result[1:n_struc], result[n_struc+1:end]
 end
 
-function extract_info(B, traj)
-    XE = sum_descriptor_traj(B, traj);
-    XF = sum_d_descriptor_traj(B, traj);
-
-    YE = Vector{Float64}(undef, length(traj)) 
-    for i in 1:length(traj)
-        YE[i] = traj[i].D["E"][1]
-    end
-
-    YF = Vector{Float64}[]
-    for i in 1:length(traj)
-        push!(YF, traj[i].D["F"])
-    end
-
-    nat = Vector{Float64}(undef, length(traj)) 
-    for i in 1:length(traj)
-        nat[i] = length(traj[i])
-    end
+function extract_info_traj(B, traj)
+    X = sum_descriptor_traj(B, traj);
+    dX_dr = sum_d_descriptor_traj(B, traj);
     
-    return XE, YE, XF, YF, nat
-    end;
+    return X, dX_dr
+end
+
+function extract_info_frame(B, frame)
+    X = sum_descriptor(B, frame);
+    dX_dr = sum_d_descriptor(B, frame);
+    
+    return X, dX_dr
+end
