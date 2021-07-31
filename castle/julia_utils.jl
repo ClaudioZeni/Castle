@@ -1,6 +1,7 @@
 
-using Pkg
-Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
+# Useful for Claudio
+#using Pkg
+#Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
 
 using ACE: alloc_B, alloc_temp, evaluate!,alloc_dB, alloc_temp_d, evaluate_d!
 using NeighbourLists: maxneigs
@@ -8,6 +9,35 @@ using JuLIP:  neighbourlist, cutoff, JVec, AbstractAtoms, fltype, AtomicNumber
 using JuLIP.Potentials: neigsz!
 using IPFitting.Data: read_xyz
 
+# Local : environment descriptor
+function environment_descriptor(shipB, at::AbstractAtoms{T}) where {T}
+   E = zeros(fltype(shipB),length(at),length(shipB))
+   B = alloc_B(shipB)
+   nlist = neighbourlist(at, cutoff(shipB))
+   maxnR = maxneigs(nlist)
+   tmp = alloc_temp(shipB, maxnR)
+   tmpRZ = (R = zeros(JVec{T}, maxnR), Z = zeros(AtomicNumber, maxnR))
+   for i = 1:length(at)
+      j, R, Z = neigsz!(tmpRZ, nlist, at, i)
+      fill!(B, 0)
+      evaluate!(B, tmp, shipB, R, Z, at.Z[i])
+      E[i,:] = B[:]
+   end
+   return E
+end
+# Local : environments for all the atoms in trajectory
+function environment_descriptor_traj(basis, traj)
+    A_all = []
+    @showprogress "Computing desc. der. for structure " for i in 1:length(traj)
+        atoms = traj[i].at
+        X = environment_descriptor(basis, atoms);
+        push!(A_all, X)
+    end
+    return A_all
+end;
+
+
+# Global : sum descriptor
 function sum_descriptor(shipB, at::AbstractAtoms{T}) where {T}
    E = zeros(fltype(shipB), length(shipB))
    B = alloc_B(shipB)
