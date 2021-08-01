@@ -1,9 +1,9 @@
-from julia import Main
 import numpy as np
+# Importing julia libraries with no precompiled modules
 import julia
 JULIA_UTILS_PATH = "/home/claudio/postdoc/Castle/castle/julia_utils.jl"
-
 j = julia.Julia(compiled_modules=False)
+from julia import Main
 
 
 Main.using("JuLIP: Chemistry.AtomicNumber, Atoms")
