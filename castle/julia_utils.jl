@@ -1,8 +1,3 @@
-
-# Useful for Claudio
-#using Pkg
-#Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
-
 using ACE: alloc_B, alloc_temp, evaluate!,alloc_dB, alloc_temp_d, evaluate_d!
 using NeighbourLists: maxneigs
 using JuLIP:  neighbourlist, cutoff, JVec, AbstractAtoms, fltype, AtomicNumber
@@ -28,7 +23,7 @@ end
 # Local : environments for all the atoms in trajectory
 function environment_descriptor_traj(basis, traj)
     A_all = []
-    @showprogress "Computing desc. der. for structure " for i in 1:length(traj)
+    for i in 1:length(traj)
         atoms = traj[i].at
         X = environment_descriptor(basis, atoms);
         push!(A_all, X)
