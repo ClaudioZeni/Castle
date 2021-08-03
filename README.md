@@ -29,10 +29,7 @@ to:
 	θ = atan(sqrt(R[1]^2+R[2]^2+ 1e-8), R[3])
 	sinθ, cosθ = sincos(θ)
 
-Change the second line of the notebook from:
 
-  Pkg.activate("/home/claudio/postdoc/ACE.jl/Project.toml")
+Then, install the julia Python package with:
 
-to:
-
-  Pkg.activate(where/is/your/ACE/ACE.jl/Project.toml")
+	pip install julia
