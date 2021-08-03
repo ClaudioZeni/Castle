@@ -12,10 +12,9 @@ press ] to go to package manager
 run the following:
 
 
-registry add https://github.com/JuliaMolSim/MolSim.git
-
-add JuLIP, IPFitting
-pin JuLIP@v0.10; pin IPFitting@v0.5
+	registry add https://github.com/JuliaMolSim/MolSim.git
+	add JuLIP, IPFitting
+	pin JuLIP@v0.10; pin IPFitting@v0.5
 
 Download ACE from https://github.com/ACEsuit/ACE.jl, branch dev-v0.8.x.
 
