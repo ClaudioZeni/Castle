@@ -36,22 +36,9 @@ def frame_to_julia_at(frame, energy_name="energy",
 
 
 def descriptors_from_at(basis, at):
-    X, dX_dr = j.extract_info_frame(basis, at.at)
-
-    # TODO: the non-summed descriptor must be
-    # yielded at some point by the Julia interface
-    sh = np.array(dX_dr).shape
-    dX_dr_local = np.empty((sh[1], sh[1], sh[2], sh[0]))
-
-    return X.T, np.transpose(np.array(dX_dr), (1, 2, 0)), dX_dr_local
-
-
-def compute_virial_descriptor(frame, dX_dr_local):
-    pos = frame.positions
-    posdiff = pos[:, None, :] - pos[None, :, :]
-    dX_ds = np.einsum('nmc, nmds -> cds', posdiff, dX_dr_local)
-    dX_ds = dX_ds[matrix_indices_in_voigt_notation, :][:, 0, 0, :]
-    return dX_ds
+    X, dX_dr, dX_ds = j.extract_info_frame(basis, at.at)
+    return (X.T, np.transpose(np.array(dX_dr), (1, 2, 0)),
+            np.transpose(np.array(dX_ds), (1, 2, 0)))
 
 
 def get_basis(N, maxdeg, rcut, species, r0=1.0,
@@ -69,8 +56,8 @@ def descriptors_from_frame(basis, frame, energy_name="energy",
 
     at = frame_to_julia_at(frame, energy_name,
                            force_name, virial_name)
-    X, dX_dr, dX_dr_local = descriptors_from_at(basis, at)
-    dX_ds = compute_virial_descriptor(frame, dX_dr_local)
+    X, dX_dr, dX_ds = descriptors_from_at(basis, at)
+    dX_ds = dX_ds[matrix_indices_in_voigt_notation, :][:, 0, 0, :]
     return X, dX_dr, dX_ds
 
 
