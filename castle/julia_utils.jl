@@ -88,7 +88,6 @@ function sum_d_descriptor_inner!(shipB, at::AbstractAtoms{T},
             F[j[a], :] .-= dB[:, a]
             F[i, :] .+= dB[:, a]
             F_local[i, j[a], :] .-= dB[:, a]
-            print(size(F_local))
         end
     end
     virial = compute_virial(F_local, at)
