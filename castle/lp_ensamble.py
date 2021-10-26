@@ -52,9 +52,8 @@ def cluster_gvect(X, e, hyper, clustering):
         # on the magnitude of each component of X.
         mean = np.mean(X, axis=0)
         std = np.std(X)
-        X = (X-mean[None, :])/std[None, None]
-        e = e - np.mean(e) - np.std(e)
-
+        X = (X - mean[None, :]) / std[None, None]
+        e = (e - np.mean(e)) / np.std(e)
         X = np.concatenate((X, e[:, None]), axis=1)
 
         gmm = GaussianMixture(n_components=hyper).fit(X)
@@ -62,7 +61,9 @@ def cluster_gvect(X, e, hyper, clustering):
 
     elif clustering == 'gmm':
         from sklearn.mixture import GaussianMixture
-
+        mean = np.mean(X, axis=0)
+        std = np.std(X)
+        X = (X - mean[None, :]) / std[None, None]
         gmm = GaussianMixture(n_components=hyper).fit(X)
         labels = gmm.predict(X)
 
