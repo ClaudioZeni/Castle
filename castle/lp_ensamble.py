@@ -1,9 +1,24 @@
 import numpy as np
 from sklearn.neighbors import BallTree
 from .linear_potential import train_linear_model
+from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 
-def cluster_gvect(X, e, hyper, clustering):
+def optimize_n_clusters(X):
+    S = []
+    for i in np.arange(2, min(len(X)//10, 10)):
+        gmm = GaussianMixture(n_components=i, n_init=3)
+        labels = gmm.fit_predict(X)
+        S.append(silhouette_score(X, labels, metric='euclidean'))
+    nopt = 2 + np.argmax(S*np.arange(1, 1+len(S))**0.5)
+    gmm = GaussianMixture(n_components=nopt, n_init=5).fit(X)
+    print("Using %i clusters" %(nopt))
+    return gmm
+
+
+def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
     """Auxiliary function that calls the correct clustering
         algorithm. Options are: kmeans clustering and advanced
         density peaks clustering. If the latter is chosen, the
@@ -11,8 +26,8 @@ def cluster_gvect(X, e, hyper, clustering):
     Args:
         G (np.array): Descriptor vector for each atom in each structure
         e (np.array): Per-atom energy of each structure
-        hyper (float): hyperparameter used for any clsutering
-        clustering (str): clustering algorithm to use
+        n_clusters (float): Number of clusters
+        clustering (str): Clustering algorithm to use
 
     Returns:
         labels (np.array): cluster (int) assigned
@@ -20,33 +35,11 @@ def cluster_gvect(X, e, hyper, clustering):
 
     """
     if clustering == "kmeans":
-        from sklearn.cluster import KMeans
 
-        kmeans = KMeans(n_clusters=hyper).fit(X)
+        kmeans = KMeans(n_clusters=n_clusters).fit(X)
         labels = kmeans.labels_
 
-    elif clustering == "adp":
-        try:
-            from adpy import data
-
-            adp = data.Data(X)
-            adp.compute_distances(maxk=max(len(X) // 100, 100), njobs=2)
-            adp.compute_id()
-            adp.compute_optimal_k()
-            adp.compute_density_kNN(int(np.median(adp.kstar)))
-            print("Selected k is : %i" % (int(np.median(adp.kstar))))
-            adp.compute_clustering_optimised(Z=hyper, halo=False)
-            labels = adp.labels
-        except ModuleNotFoundError:
-            print(
-                "WARNING: ADP package required to perform adp clustering.\
-                   Defaulting to kmeans clustering."
-            )
-            labels = cluster_gvect(X, e, hyper, "kmeans")
-
     elif clustering == 'e_gmm':
-        from sklearn.mixture import GaussianMixture
-
         # Resize X based only on global std and energy std, separately
         # So that e is comparable to X but we do not lose information
         # on the magnitude of each component of X.
@@ -55,17 +48,41 @@ def cluster_gvect(X, e, hyper, clustering):
         X = (X - mean[None, :]) / std[None, None]
         e = (e - np.mean(e)) / np.std(e)
         X = np.concatenate((X, e[:, None]), axis=1)
-
-        gmm = GaussianMixture(n_components=hyper).fit(X)
+        
+        if n_clusters == 'auto':
+            gmm = optimize_n_clusters(X)
+        else:
+            gmm = GaussianMixture(n_components=n_clusters, n_init=5).fit(X)
         labels = gmm.predict(X)
 
     elif clustering == 'gmm':
-        from sklearn.mixture import GaussianMixture
         mean = np.mean(X, axis=0)
         std = np.std(X)
         X = (X - mean[None, :]) / std[None, None]
-        gmm = GaussianMixture(n_components=hyper).fit(X)
+
+        if n_clusters == 'auto':
+            gmm = optimize_n_clusters(X)
+        else:
+            gmm = GaussianMixture(n_components=n_clusters, n_init=5).fit(X)
         labels = gmm.predict(X)
+
+    # elif clustering == "dada":
+    #     try:
+    #         from dadapy import data
+    #         adp = data.Data(X)
+    #         adp.compute_distances(maxk=max(len(X) // 100, 100))
+    #         adp.compute_id_2NN()
+    #         # adp.compute_density_kNN(int(np.median(adp.kstar)))
+    #         adp.compute_density_kstarNN()
+    #         print("Selected k is : %i" % (int(np.median(adp.kstar))))
+    #         adp.compute_clustering_optimised(halo=False)
+    #         labels = adp.labels
+    #     except ModuleNotFoundError:
+    #         print(
+    #             "WARNING: DADApy package required to perform dada clustering.\
+    #                Defaulting to kmeans clustering."
+    #         )
+    #         labels = cluster_gvect(X, e, n_clusters, "kmeans")
 
     return labels
 
@@ -96,6 +113,7 @@ class LPEnsamble(object):
                                    for i in clusters])
                 weights = np.exp(-dist[i])
                 weights /= np.sum(np.exp(-dist[i]))
+                print(weights)
                 e_ = np.einsum("d, ld, l -> ", features.X[i], alphas, weights)
 
             e_pred[i] = e_
@@ -153,12 +171,12 @@ class LPEnsamble(object):
 
 
 def train_ensamble_linear_model(
-    features, noise, e, f, n_neighbours=1, hyper=6, clustering="kmeans"
+    features, noise, e, f, n_neighbours=1, n_clusters=10, clustering="kmeans"
 ):
     nat = features.get_nb_atoms_per_frame()
 
     train_labels = cluster_gvect(features.X / nat[:, None],
-                                 e / nat, hyper, clustering)
+                                 e / nat, n_clusters, clustering)
 
     potentials = {}
     structure_ids = np.arange(len(features))

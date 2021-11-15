@@ -2,6 +2,9 @@ import numpy as np
 import joblib
 import pickle
 from sklearn.metrics import r2_score
+from ase.io import read
+from . import AceGlobalRepresentation
+from ase.data import atomic_numbers
 
 
 def dump(fn, obj, compress=3, protocol=pickle.HIGHEST_PROTOCOL):
@@ -129,4 +132,47 @@ def print_score(y1, y2):
     rmse = np.mean(diff**2)**0.5
     sup = max(diff)
     r2 = r2_score(y1, y2)
-    print("MAE=%.2f RMSE=%.2f SUP=%.2f R2=%.2f" % (mae, rmse, sup, r2))
+    print("MAE=%.3f RMSE=%.3f SUP=%.3f R2=%.3f" % (mae, rmse, sup, r2))
+
+
+def extract_features(folder, train_filename, validation_filename=None, 
+                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, reg = 1e-8, species = None,
+                    force_name = None, energy_name = None, validation_split=0.8):
+    
+    if validation_filename is None:
+        frames = read(folder + train_filename, index = ':')
+        ind = np.random.shuffle(np.arange(len(frames)))
+        tr_frames = [frames[s] for s in ind[:int(validation_split*len(ind))]]
+        val_frames = [frames[s] for s in ind[int(validation_split*len(ind)):]]
+        
+    else:
+        tr_frames = read(folder + train_filename, index = ':')
+        val_frames = read(folder + validation_filename, index = ':')
+
+    if species is None:
+        species = list(set(tr_frames[0].get_atomic_numbers()))
+    if type(species)==str:
+        species = atomic_numbers[species]
+
+    representation = AceGlobalRepresentation(N, maxdeg, rcut, species, r0, reg, 
+                                             energy_name=energy_name, force_name=force_name)
+
+    tr_features = representation.transform(tr_frames)
+    val_features = representation.transform(val_frames)
+    dump(folder + f"/tr_features_N_{N}_d_{maxdeg}.xz", tr_features)
+    dump(folder + f"/val_features_N_{N}_d_{maxdeg}.xz", val_features)
+    
+    return tr_features, val_features
+
+
+def load_everything(folder, tr_traj_name, val_traj_name, tr_features_name, val_features_name,
+                    force_name = None, energy_name = None):
+    tr_frames = read(folder + tr_traj_name, index = ':')
+    val_frames = read(folder + val_traj_name, index = ':')
+    tr_features = load(folder + tr_features_name)
+    val_features = load(folder + val_features_name)
+    e_t, f_t = get_forces_and_energies(tr_frames, energy_name = energy_name, force_name = force_name)
+    e_val, f_val = get_forces_and_energies(val_frames, energy_name = energy_name, force_name = force_name)
+    nat_val = get_nat(val_frames)
+    nat_tr = get_nat(tr_frames)
+    return e_t, f_t, e_val, f_val, nat_tr, nat_val, tr_features, val_features
