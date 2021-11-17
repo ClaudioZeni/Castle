@@ -6,7 +6,7 @@ class LinearPotential(object):
         self.weights = weights
         self.representation = representation
 
-    def predict(self, features):
+    def predict_energy(self, features):
         e = np.dot(features.X, self.weights)
         return e
 
@@ -15,6 +15,7 @@ class LinearPotential(object):
         return f
 
     def predict_stress(self, features):
+        # TODO CHECK IF CORRECT
         v = -np.einsum("mcd, d -> mc", features.dX_ds, self.weights)
         return v
 

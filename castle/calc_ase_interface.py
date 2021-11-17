@@ -40,10 +40,12 @@ class ASEMLCalculator(Calculator):
         at.wrap(eps=1e-11)
         self.manager = [at]
         features = self.representation.transform(self.manager)
-        energy = self.model.predict(features)
+        energy = self.model.predict_energy(features)
         self.results["energy"] = energy
         self.results["free_energy"] = energy
+        
         if "forces" in properties:
             self.results["forces"] = self.model.predict_forces(features)
         if "stress" in properties:
             self.results["stress"] = self.model.predict_stress(features).flatten()
+

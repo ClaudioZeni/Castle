@@ -89,85 +89,91 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
 
 class LPEnsamble(object):
     def __init__(self, potentials, representation,
-                 tree, train_labels, n_neighbours):
+                 tree, train_labels, n_neighbours, X_training):
         self.potentials = potentials
         self.representation = representation
         self.tree = tree
         self.train_labels = train_labels
         self.n_neighbours = n_neighbours
+        self.X_training = X_training
 
-    def predict(self, features):
+    def predict_energy(self, features):
         nat = features.get_nb_atoms_per_frame()
-        dist, idx = self.tree.query(features.X / nat[:, None],
+        neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
                                     k=self.n_neighbours)
-
         e_pred = np.zeros(len(features))
         for i in np.arange(len(features)):
-            clusters = self.train_labels[idx[i]]
-            # If all neighbours are in the same cluster, easy
-            if len(np.unique(clusters)) == 1:
-                feat = features.get_subset([i])
-                e_ = self.potentials[clusters[0]].predict(feat)
-            else:
-                alphas = np.array([self.potentials[i].weights
-                                   for i in clusters])
-                weights = np.exp(-dist[i])
-                weights /= np.sum(np.exp(-dist[i]))
-                print(weights)
-                e_ = np.einsum("d, ld, l -> ", features.X[i], alphas, weights)
-
-            e_pred[i] = e_
-
+            feat = features.get_subset([i])
+            e_pred[i] = self.predict_energy_single(feat, neigh_dist[i],
+                                                   neigh_idx[i], nat[i])
         return e_pred
 
-    def predict_stress(self, features):
-        nat = features.get_nb_atoms_per_frame()
-        dist, idx = self.tree.query(features.X / nat[:, None],
-                                    k=self.n_neighbours)
-
-        s_pred = np.zeros((len(features), 6))
-        for i in np.arange(len(features)):
-            clusters = self.train_labels[idx[i]]
-            # If all neighbours are in the same cluster, easy
-            if len(np.unique(clusters)) == 1:
-                feat = features.get_subset([i])
-                s_ = self.potentials[clusters[0]].predict_stress(feat)
-            else:
-                alphas = np.array([self.potentials[i].weights
-                                   for i in clusters])
-                weights = np.exp(-dist[i])
-                weights /= np.sum(np.exp(-dist[i]))
-                s_ = -np.einsum("cd, ld, l -> c", features.dX_ds[i],
-                                alphas, weights)
-            s_pred[i] = s_
-
-        return s_pred
+    def predict_energy_single(self, feat, neigh_dist, neigh_idx, nat):
+        clusters = self.train_labels[neigh_idx]
+        # If all neighbours are in the same cluster, easy
+        if len(np.unique(clusters)) == 1:
+            e_ = self.potentials[clusters[0]].predict_energy(feat)
+        else:
+            alphas = np.array([self.potentials[i].weights
+                                for i in clusters])
+            weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+            e_ = np.einsum("d, ld, l -> ", feat.X[0], alphas, weights)
+        return e_
 
     def predict_forces(self, features):
         nat = features.get_nb_atoms_per_frame()
-        dist, idx = self.tree.query(features.X / nat[:, None],
+        neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
                                     k=self.n_neighbours)
-
         f_pred = np.zeros(features.dX_dr.shape[:2])
         nat_counter = 0
         for i in np.arange(len(features)):
-            clusters = self.train_labels[idx[i]]
-            # If all neighbours are in the same cluster, easy
             feat = features.get_subset([i])
-            if len(np.unique(clusters)) == 1:
-                f_ = self.potentials[clusters[0]].predict_forces(feat)
-            else:
-                alphas = np.array([self.potentials[i].weights
-                                   for i in clusters])
-                weights = np.exp(-dist[i])
-                weights /= np.sum(np.exp(-dist[i]))
-                f_ = -np.einsum("mcd, ld, l -> mc",
-                                feat.dX_dr, alphas, weights)
-
+            f_ = self.predict_forces_single(feat, neigh_dist[i],
+                                         neigh_idx[i], nat[i])
             f_pred[nat_counter:nat_counter+nat[i]] = f_
             nat_counter += nat[i]
-
         return f_pred
+
+    def predict_forces_single(self, feat, neigh_dist, neigh_idx, nat):
+        clusters = self.train_labels[neigh_idx]
+        # If all neighbours are in the same cluster, easy
+        if len(np.unique(clusters)) == 1:
+            f_ = self.potentials[clusters[0]].predict_forces(feat)
+        else:
+            alphas = np.array([self.potentials[i].weights
+                                for i in clusters])
+            weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+            f_1 = np.einsum("mcd, ld, l -> mc",
+                            feat.dX_dr, alphas, weights)
+            diff_unity_vector = (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
+            p1 = 1 - np.einsum("d, ld, l-> ld", feat.X[0], diff_unity_vector, (1-weights))
+            p2 = np.einsum("ld, l -> d", p1, weights)
+            f_ = np.einsum("ld, mcd, d -> mc", alphas, feat.dX_dr, p2)
+        return f_
+
+    def predict_stress(self, features):
+        nat = features.get_nb_atoms_per_frame()
+        neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
+                                    k=self.n_neighbours)
+        s_pred = np.zeros((len(features), 6))
+        for i in np.arange(len(features)):
+            feat = features.get_subset([i])
+            s_pred[i] = self.predict_stress_single(feat, neigh_dist[i], neigh_idx[i])
+        return s_pred
+
+    def predict_stress_single(self, feat, neigh_dist, neigh_idx):
+        clusters = self.train_labels[neigh_idx]
+        # If all neighbours are in the same cluster, easy
+        if len(np.unique(clusters)) == 1:
+            s_ = self.potentials[clusters[0]].predict_stress(feat)
+        else:
+            # TODO
+            alphas = np.array([self.potentials[i].weights
+                                for i in clusters])
+            weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+            s_ = -np.einsum("cd, ld, l -> c", feat.dX_ds[0],
+                            alphas, weights)
+        return s_
 
 
 def train_ensamble_linear_model(
@@ -194,6 +200,6 @@ def train_ensamble_linear_model(
     # Construct reference ball tree
     tree = BallTree(features.X / nat[:, None], leaf_size=2)
     model = LPEnsamble(
-        potentials, features.representation, tree, train_labels, n_neighbours
+        potentials, features.representation, tree, train_labels, n_neighbours, features.X / nat[:, None]
     )
     return model

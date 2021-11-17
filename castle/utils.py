@@ -140,10 +140,7 @@ def extract_features(folder, train_filename, validation_filename=None,
                     force_name = None, energy_name = None, validation_split=0.8):
     
     if validation_filename is None:
-        frames = read(folder + train_filename, index = ':')
-        ind = np.random.shuffle(np.arange(len(frames)))
-        tr_frames = [frames[s] for s in ind[:int(validation_split*len(ind))]]
-        val_frames = [frames[s] for s in ind[int(validation_split*len(ind)):]]
+        tr_frames = read(folder + train_filename, index = ':')
         
     else:
         tr_frames = read(folder + train_filename, index = ':')
@@ -158,11 +155,15 @@ def extract_features(folder, train_filename, validation_filename=None,
                                              energy_name=energy_name, force_name=force_name)
 
     tr_features = representation.transform(tr_frames)
-    val_features = representation.transform(val_frames)
-    dump(folder + f"/tr_features_N_{N}_d_{maxdeg}.xz", tr_features)
-    dump(folder + f"/val_features_N_{N}_d_{maxdeg}.xz", val_features)
-    
-    return tr_features, val_features
+    if validation_filename is not None:
+        val_features = representation.transform(val_frames)
+        dump(folder + f"/tr_features_N_{N}_d_{maxdeg}.xz", tr_features)
+        dump(folder + f"/val_features_N_{N}_d_{maxdeg}.xz", val_features)
+        return tr_features, val_features
+    	
+    else:
+        dump(folder + f"/features_N_{N}_d_{maxdeg}.xz", tr_features)
+        return tr_features
 
 
 def load_everything(folder, tr_traj_name, val_traj_name, tr_features_name, val_features_name,
