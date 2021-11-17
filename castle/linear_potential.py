@@ -11,7 +11,7 @@ class LinearPotential(object):
         return e
 
     def predict_forces(self, features):
-        f = -np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
+        f = np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
         return f
 
     def predict_stress(self, features):
@@ -23,9 +23,9 @@ def train_linear_model(features, noise, e, f):
     X_tot = np.concatenate(
         (
             features.X,
-            -features.dX_dr[:, 0, :],
-            -features.dX_dr[:, 1, :],
-            -features.dX_dr[:, 2, :],
+            features.dX_dr[:, 0, :],
+            features.dX_dr[:, 1, :],
+            features.dX_dr[:, 2, :],
         ),
         axis=0,
     )
