@@ -3,7 +3,7 @@ import joblib
 import pickle
 from sklearn.metrics import r2_score
 from ase.io import read
-from . import AceGlobalRepresentation
+from . import AceGlobalRepresentation, AceLocalRepresentation
 from ase.data import atomic_numbers
 
 
@@ -163,6 +163,37 @@ def extract_features(folder, train_filename, validation_filename=None,
     	
     else:
         dump(folder + f"/features_N_{N}_d_{maxdeg}.xz", tr_features)
+        return tr_features
+
+
+def extract_local_features(folder, train_filename, validation_filename=None, 
+                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, reg = 1e-8, species = None,
+                    force_name = None, energy_name = None, validation_split=0.8):
+    
+    if validation_filename is None:
+        tr_frames = read(folder + train_filename, index = ':')
+        
+    else:
+        tr_frames = read(folder + train_filename, index = ':')
+        val_frames = read(folder + validation_filename, index = ':')
+
+    if species is None:
+        species = list(set(tr_frames[0].get_atomic_numbers()))
+    if type(species)==str:
+        species = atomic_numbers[species]
+
+    representation = AceLocalRepresentation(N, maxdeg, rcut, species, r0, reg, 
+                                             energy_name=energy_name, force_name=force_name)
+
+    tr_features = representation.transform(tr_frames)
+    if validation_filename is not None:
+        val_features = representation.transform(val_frames)
+        dump(folder + f"/tr_local_features_N_{N}_d_{maxdeg}.xz", tr_features)
+        dump(folder + f"/val_local__features_N_{N}_d_{maxdeg}.xz", val_features)
+        return tr_features, val_features
+    	
+    else:
+        dump(folder + f"/local_features_N_{N}_d_{maxdeg}.xz", tr_features)
         return tr_features
 
 

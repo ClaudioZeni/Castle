@@ -2,8 +2,10 @@ import ase
 import numpy as np
 
 from .ace_interface import (descriptors_from_frame,
-                            descriptors_from_frame_no_forces, get_basis)
-from .features import GlobalFeatures
+                            descriptors_from_frame_no_forces,
+                            local_descriptors_from_frame_no_forces,
+                            get_basis)
+from .features import GlobalFeatures, LocalFeatures
 
 
 class AceGlobalRepresentation(object):
@@ -75,5 +77,56 @@ class AceGlobalRepresentation(object):
         return X, dX_dr_global, dX_ds_global
 
     def _get_global_representation_single_species_no_forces(self, basis, frame):
+        X = descriptors_from_frame_no_forces(basis, frame, self.energy_name)
+        return X
+
+
+class AceLocalRepresentation(object):
+    def __init__(self, n_body, maxdeg, rcut, species, r0=1.0,
+                 reg=1e-8, rin=1.0, constants=False,
+                 energy_name="dft_energy", force_name="dft_force",
+                 virial_name="dft_virial"):
+        self.n_body = n_body
+        self.maxdeg = maxdeg
+        self.rcut = rcut
+        self.species = species
+        self.r0 = r0
+        self.reg = reg
+        self.rin = rin
+        self.constants = constants
+        self.energy_name = energy_name
+        self.force_name = force_name
+        self.virial_name = virial_name
+
+    def transform(self, frames):
+        basis, self.n_feat = get_basis(
+            self.n_body, self.maxdeg, self.rcut, self.species,
+            self.r0, self.reg, self.rin, self.constants)
+        if not isinstance(frames, list):
+            frames = [frames]
+        n_atoms = 0
+        n_frames = len(frames)
+        species = []
+        strides = [0]
+        for frame in frames:
+            n_atoms += len(frame)
+            strides.append(len(frame))
+            if isinstance(frame, ase.Atoms):
+                species.extend(frame.get_atomic_numbers())
+            else:
+                for at in frame:
+                    species.append(at.atom_type)
+
+        species = np.unique(species)
+        strides = np.cumsum(strides)
+        X = []
+        for i_frame in range(len(frames)):
+            frame = frames[i_frame]
+            X.append(self._get_local_representation_single_species_no_forces(
+                basis, frame))
+
+        return LocalFeatures(self, X, None, None, strides, species)
+
+    def _get_local_representation_single_species_no_forces(self, basis, frame):
         X = descriptors_from_frame_no_forces(basis, frame, self.energy_name)
         return X

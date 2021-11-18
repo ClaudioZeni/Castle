@@ -36,3 +36,21 @@ class GlobalFeatures(object):
         for st, nd in zip(self.strides[:-1], self.strides[1:]):
             nat.append(nd - st)
         return np.array(nat)
+
+class LocalFeatures(object):
+    def __init__(self, representation, X, dX_dr, dX_ds, strides, species):
+        self.representation = representation
+        self.X = X
+        self.dX_dr = dX_dr
+        self.dX_ds = dX_ds
+        self.strides = strides
+        self.species = species
+
+    def __len__(self):
+        return self.X.shape[0]
+
+    def get_nb_atoms_per_frame(self):
+        nat = []
+        for st, nd in zip(self.strides[:-1], self.strides[1:]):
+            nat.append(nd - st)
+        return np.array(nat)

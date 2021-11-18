@@ -143,12 +143,17 @@ class LPEnsamble(object):
             alphas = np.array([self.potentials[i].weights
                                 for i in clusters])
             weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+            diff_unity_vector = (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
+            
+            # TODO
             f_1 = np.einsum("mcd, ld, l -> mc",
                             feat.dX_dr, alphas, weights)
-            diff_unity_vector = (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
-            p1 = 1 - np.einsum("d, ld, l-> ld", feat.X[0], diff_unity_vector, (1-weights))
-            p2 = np.einsum("ld, l -> d", p1, weights)
-            f_ = np.einsum("ld, mcd, d -> mc", alphas, feat.dX_dr, p2)
+
+            # p1 = 1 - np.einsum("d, ld, l-> ld", feat.X[0], diff_unity_vector, (1-weights))
+            # p2 = np.einsum("ld, l -> d", p1, weights)
+            # f_ = np.einsum("ld, mcd, d -> mc", alphas, feat.dX_dr, p2)
+
+            f_ = f_1 #+ f_2
         return f_
 
     def predict_stress(self, features):

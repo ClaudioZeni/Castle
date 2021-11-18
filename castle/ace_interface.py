@@ -65,3 +65,9 @@ def descriptors_from_frame_no_forces(basis, frame, energy_name="energy"):
     at = frame_to_julia_at(frame, energy_name)
     X = j.sum_descriptor(basis, at.at)
     return X
+
+
+def local_descriptors_from_frame_no_forces(basis, frame, energy_name="energy"):
+    at = frame_to_julia_at(frame, energy_name)
+    X = j.environment_descriptor(basis, at.at)
+    return X
