@@ -128,5 +128,5 @@ class AceLocalRepresentation(object):
         return LocalFeatures(self, X, None, None, strides, species)
 
     def _get_local_representation_single_species_no_forces(self, basis, frame):
-        X = descriptors_from_frame_no_forces(basis, frame, self.energy_name)
+        X = local_descriptors_from_frame_no_forces(basis, frame, self.energy_name)
         return X
