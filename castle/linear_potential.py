@@ -20,17 +20,22 @@ class LinearPotential(object):
         return v
 
 
-def train_linear_model(features, noise, e, f):
-    X_tot = np.concatenate(
-        (
-            features.X,
-            features.dX_dr[:, 0, :],
-            features.dX_dr[:, 1, :],
-            features.dX_dr[:, 2, :],
-        ),
-        axis=0,
-    )
-    Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
+def train_linear_model(features, noise, e, f=None):
+
+    if f is None:
+        X_tot = features.X
+        Y_tot = e
+    else:
+        X_tot = np.concatenate(
+            (
+                features.X,
+                features.dX_dr[:, 0, :],
+                features.dX_dr[:, 1, :],
+                features.dX_dr[:, 2, :],
+            ),
+            axis=0,
+        )
+        Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
 
     # ftf shape is (S, S)
     gtg = np.einsum("na, nb -> ab", X_tot, X_tot)

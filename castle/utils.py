@@ -168,7 +168,7 @@ def extract_features(folder, train_filename, validation_filename=None,
 
 def extract_local_features(folder, train_filename, validation_filename=None, 
                     N=8, maxdeg=10, rcut=4.0, r0 = 1.0, reg = 1e-8, species = None,
-                    force_name = None, energy_name = None, validation_split=0.8):
+                    force_name = None, energy_name = None):
     
     if validation_filename is None:
         tr_frames = read(folder + train_filename, index = ':')
@@ -189,7 +189,7 @@ def extract_local_features(folder, train_filename, validation_filename=None,
     if validation_filename is not None:
         val_features = representation.transform(val_frames)
         dump(folder + f"/tr_local_features_N_{N}_d_{maxdeg}.xz", tr_features)
-        dump(folder + f"/val_local__features_N_{N}_d_{maxdeg}.xz", val_features)
+        dump(folder + f"/val_local_features_N_{N}_d_{maxdeg}.xz", val_features)
         return tr_features, val_features
     	
     else:

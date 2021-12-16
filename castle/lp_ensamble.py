@@ -135,25 +135,59 @@ class LPEnsamble(object):
         return f_pred
 
     def predict_forces_single(self, feat, neigh_dist, neigh_idx, nat):
+        """ Definitions:
+        m: number of atoms in configuration
+        c: cartesian coordinates
+        d: number of dimensions of descriptor
+        s: number of nearest neighbours in clustering model
+        
+        Shapes:
+        
+        clusters:   (s)
+        feat.X:     (1, d)
+        feat.dX_dr: (m, c, d)
+        model_weight:    (s)
+        alphas:     (s, d)
+        diff_unity_vector: (s, d)
+        d_weights_d_r: (m, s, c)
+        d_weights_d_descr: (s, d)
+        """
         clusters = self.train_labels[neigh_idx]
         # If all neighbours are in the same cluster, easy
         if len(np.unique(clusters)) == 1:
             f_ = self.potentials[clusters[0]].predict_forces(feat)
+
+        # Else, there are two terms to the total energy derivative
+        # The first term, f_1 is the derivative of the descirptor multiplied by the model_weights
+        # The second term, f_2 is the descriptor multiplied by the derivative of the model_weights
         else:
+            # Coefficients for the potentials used
             alphas = np.array([self.potentials[i].weights
                                 for i in clusters])
-            weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
-            diff_unity_vector = (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
+            # Weight of each of the neighbours employed for interpolation, computed via softmax
+            # of the distances of the descriptor per atom
+            model_weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+
+            # First part of the force component, easy
+            f_1 = np.einsum("mcd, sd, s -> mc",
+                            feat.dX_dr, alphas, model_weights)
+
+            # Second part of the force component, complex
+            # Direction from the descriptor to each nearest neighbour reference descriptor
+            diff_unity_vector = - (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
+
+            # Derivative of weights w.r.t. position of descriptor,
+            d_weights_d_descr =  np.sum(np.exp(-neigh_dist)[:, None, None]*(diff_unity_vector[:, None, :] - diff_unity_vector[None, :, :]), axis = 0)
+            d_weights_d_descr /= np.sum(np.exp(-neigh_dist))
+
+            # Derivative of weights w.r.t. position of atom.
+            d_weights_d_r = np.einsum('s, sd, mcd -> msc', 
+                                     model_weights, d_weights_d_descr, feat.dX_dr)
             
-            # TODO
-            f_1 = np.einsum("mcd, ld, l -> mc",
-                            feat.dX_dr, alphas, weights)
+            # Descriptor multiplied by the derivative of the weights
+            f_2 = np.einsum("d, sd, msc -> mc", feat.X[0], alphas, d_weights_d_r) 
+            f_ = f_1 + f_2
 
-            # p1 = 1 - np.einsum("d, ld, l-> ld", feat.X[0], diff_unity_vector, (1-weights))
-            # p2 = np.einsum("ld, l -> d", p1, weights)
-            # f_ = np.einsum("ld, mcd, d -> mc", alphas, feat.dX_dr, p2)
-
-            f_ = f_1 #+ f_2
         return f_
 
     def predict_stress(self, features):
