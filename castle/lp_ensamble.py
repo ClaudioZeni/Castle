@@ -185,7 +185,7 @@ class LPEnsamble(object):
                                      model_weights, d_weights_d_descr, feat.dX_dr)
             
             # Descriptor multiplied by the derivative of the weights, not sure about the sign
-            f_2 = -np.einsum("d, sd, msc -> mc", feat.X[0], alphas, d_weights_d_r) 
+            f_2 = np.einsum("d, sd, msc -> mc", feat.X[0], alphas, d_weights_d_r) 
             f_ = f_1 + f_2
 
         return f_
