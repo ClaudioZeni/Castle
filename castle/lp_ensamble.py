@@ -161,14 +161,13 @@ class LPEnsamble(object):
         return s_
 
     def get_models_weight(self, X_avg, dX_dr=None, compute_der=False):
-        """Compute weight (and derivative) of models for a single structure.
-        w.r.t. each atom's position.
+        """Compute weight (and derivative w.r.t. each atom's position)
+            of models for a single structure.
+
         m: number of atoms in configuration
         c: cartesian coordinates
         d: number of dimensions of descriptor
         s: number of models
-
-        order of indexing: s, d, m, c
 
         X_avg: (d)
         dX_dr: (m, c, d)
