@@ -26,10 +26,15 @@ class LinearPotential(object):
         f = self.predict_forces(features)
         return e, f
 
-def train_linear_model(features, noise, e, f=None):
-    nat = features.get_nb_atoms_per_frame()
-    mean_peratom_energy = np.mean(e / nat)
-    e_adj = e - nat*mean_peratom_energy
+def train_linear_model(features, noise, e, f=None, mean_peratom=True):
+
+    if mean_peratom:
+        nat = features.get_nb_atoms_per_frame()
+        mean_peratom_energy = np.mean(e / nat)
+        e_adj = e - nat*mean_peratom_energy
+    else:
+        mean_peratom_energy = 0
+        e_adj = e
 
     if f is None:
         X_tot = features.X

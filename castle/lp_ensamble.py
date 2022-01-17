@@ -290,7 +290,7 @@ def train_ensamble_linear_model(
         fmask = np.zeros(0, dtype="bool")
         for i in np.arange(len(nat)):
             fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
-        pot = train_linear_model(features_, noise, e_adj[mask], f[fmask])
+        pot = train_linear_model(features_, noise, e_adj[mask], f[fmask], mean_peratom=False)
 
         potentials[lab] = pot
 
