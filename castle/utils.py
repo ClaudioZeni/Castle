@@ -166,12 +166,12 @@ def extract_features(folder, train_filename, validation_filename=None,
     tr_features = representation.transform(tr_frames)
     if validation_filename is not None:
         val_features = representation.transform(val_frames)
-        dump(folder + f"/tr_features_N_{N}_d_{maxdeg}.xz", tr_features)
-        dump(folder + f"/val_features_N_{N}_d_{maxdeg}.xz", val_features)
+        dump(folder + f"/tr_features_N_{N}_d_{maxdeg}_cut_{rcut}.xz", tr_features)
+        dump(folder + f"/val_features_N_{N}_d_{maxdeg}_cut_{rcut}.xz", val_features)
         return tr_features, val_features
     	
     else:
-        dump(folder + f"/features_N_{N}_d_{maxdeg}.xz", tr_features)
+        dump(folder + f"/features_N_{N}_d_{maxdeg}_cut_{rcut}.xz", tr_features)
         return tr_features
 
 
