@@ -1,3 +1,4 @@
+from asyncio.format_helpers import _format_callback_source
 from ase.calculators.calculator import Calculator, all_changes
 from copy import deepcopy
 
@@ -23,7 +24,7 @@ class ASEMLCalculator(Calculator):
     nolabel = True
 
     def __init__(self, model, representation, **kwargs):
-        super(ASEMLCalculator, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.model = model
         self.representation = representation
         self.kwargs = kwargs
@@ -40,12 +41,17 @@ class ASEMLCalculator(Calculator):
         at.wrap(eps=1e-11)
         self.manager = [at]
         features = self.representation.transform(self.manager)
-        energy = self.model.predict_energy(features)
+        
+        if "forces" in properties:
+            energy, forces = self.model.predict(features)
+            self.results["forces"] = forces
+
+        else:
+            energy = self.model.predict_energy(features)
+
         self.results["energy"] = energy
         self.results["free_energy"] = energy
         
-        if "forces" in properties:
-            self.results["forces"] = self.model.predict_forces(features)
         if "stress" in properties:
             self.results["stress"] = self.model.predict_stress(features).flatten()
 
