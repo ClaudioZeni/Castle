@@ -73,11 +73,9 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
 class LPEnsamble(object):
     def __init__(self, potentials, representation,
                  centers, precisions, weights, 
-                 train_labels, X_training, mean_peratom_energy):
+                 mean_peratom_energy):
         self.potentials = potentials
         self.representation = representation
-        self.train_labels = train_labels
-        self.X_training = X_training
         self.centers = centers 
         self.precisions = precisions
         self.weights = weights
@@ -137,76 +135,6 @@ class LPEnsamble(object):
             nat_counter += nat[i]
 
         return f_pred
-    
-    # def predict_forces(self, features):
-    #     nat = features.get_nb_atoms_per_frame()
-    #     neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
-    #                                 k=self.n_neighbours)
-    #     f_pred = np.zeros(features.dX_dr.shape[:2])
-    #     nat_counter = 0
-    #     for i in np.arange(len(features)):
-    #         feat = features.get_subset([i])
-    #         f_ = self.predict_forces_single(feat, neigh_dist[i],
-    #                                      neigh_idx[i], nat[i])
-    #         f_pred[nat_counter:nat_counter+nat[i]] = f_
-    #         nat_counter += nat[i]
-    #     return f_pred
-                                                       
-    # def predict_forces_single(self, feat, neigh_dist, neigh_idx, nat):
-    #     """ Definitions:
-    #     m: number of atoms in configuration
-    #     c: cartesian coordinates
-    #     d: number of dimensions of descriptor
-    #     s: number of nearest neighbours in clustering model
-        
-    #     Shapes:
-        
-    #     clusters:   (s)
-    #     feat.X:     (1, d)
-    #     feat.dX_dr: (m, c, d)
-    #     model_weight:    (s)
-    #     alphas:     (s, d)
-    #     diff_unity_vector: (s, d)
-    #     d_weights_d_r: (m, s, c)
-    #     d_weights_d_descr: (s, d)
-    #     """
-    #     clusters = self.train_labels[neigh_idx]
-    #     # If all neighbours are in the same cluster, easy
-    #     if len(np.unique(clusters)) == 1:
-    #         f_ = self.potentials[clusters[0]].predict_forces(feat)
-
-    #     # Else, there are two terms to the total energy derivative
-    #     # The first term, f_1 is the derivative of the descirptor multiplied by the model_weights
-    #     # The second term, f_2 is the descriptor multiplied by the derivative of the model_weights
-    #     else:
-    #         # Coefficients for the potentials used
-    #         alphas = np.array([self.potentials[i].weights
-    #                             for i in clusters])
-    #         # Weight of each of the neighbours employed for interpolation, computed via softmax
-    #         # of the distances of the descriptor per atom
-    #         model_weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
-
-    #         # First part of the force component, easy
-    #         f_1 = np.einsum("mcd, sd, s -> mc",
-    #                         feat.dX_dr, alphas, model_weights)
-
-    #         # Second part of the force component, complex
-    #         # Direction from the descriptor to each nearest neighbour reference descriptor
-    #         diff_unity_vector = - (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
-
-    #         # Derivative of weights w.r.t. position of descriptor,
-    #         d_weights_d_descr =  np.sum(np.exp(-neigh_dist)[:, None, None]*(diff_unity_vector[:, None, :] - diff_unity_vector[None, :, :]), axis = 0)
-    #         d_weights_d_descr /= np.sum(np.exp(-neigh_dist))
-
-    #         # Derivative of weights w.r.t. position of atom.
-    #         d_weights_d_r = np.einsum('s, sd, mcd -> msc', 
-    #                                  model_weights, d_weights_d_descr, feat.dX_dr)
-            
-    #         # Descriptor multiplied by the derivative of the weights, not sure about the sign
-    #         f_2 = np.einsum("d, sd, msc -> mc", feat.X[0]/nat, alphas, d_weights_d_r) 
-    #         f_ = f_1 - f_2
-
-    #     return f_
 
     def predict_stress(self, features):
         nat = features.get_nb_atoms_per_frame()
@@ -280,8 +208,10 @@ def train_ensamble_linear_model(
     labels, centers, precisions, weights = cluster_gvect(features.X / nat[:, None],
                                  e / nat, n_clusters, clustering)
 
+    # Remove atomic energy contributions
     mean_peratom_energy = np.mean(e / nat)
     e_adj = e - nat*mean_peratom_energy
+
     potentials = {}
     structure_ids = np.arange(len(features))
     for lab in list(set(labels)):
@@ -296,6 +226,79 @@ def train_ensamble_linear_model(
 
     model = LPEnsamble(
         potentials, features.representation, centers, precisions, 
-        weights, labels, features.X / nat[:, None], mean_peratom_energy
+        weights, mean_peratom_energy
     )
     return model
+
+
+# Old stuff
+    
+    # def predict_forces(self, features):
+    #     nat = features.get_nb_atoms_per_frame()
+    #     neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
+    #                                 k=self.n_neighbours)
+    #     f_pred = np.zeros(features.dX_dr.shape[:2])
+    #     nat_counter = 0
+    #     for i in np.arange(len(features)):
+    #         feat = features.get_subset([i])
+    #         f_ = self.predict_forces_single(feat, neigh_dist[i],
+    #                                      neigh_idx[i], nat[i])
+    #         f_pred[nat_counter:nat_counter+nat[i]] = f_
+    #         nat_counter += nat[i]
+    #     return f_pred
+                                                       
+    # def predict_forces_single(self, feat, neigh_dist, neigh_idx, nat):
+    #     """ Definitions:
+    #     m: number of atoms in configuration
+    #     c: cartesian coordinates
+    #     d: number of dimensions of descriptor
+    #     s: number of nearest neighbours in clustering model
+        
+    #     Shapes:
+        
+    #     clusters:   (s)
+    #     feat.X:     (1, d)
+    #     feat.dX_dr: (m, c, d)
+    #     model_weight:    (s)
+    #     alphas:     (s, d)
+    #     diff_unity_vector: (s, d)
+    #     d_weights_d_r: (m, s, c)
+    #     d_weights_d_descr: (s, d)
+    #     """
+    #     clusters = self.train_labels[neigh_idx]
+    #     # If all neighbours are in the same cluster, easy
+    #     if len(np.unique(clusters)) == 1:
+    #         f_ = self.potentials[clusters[0]].predict_forces(feat)
+
+    #     # Else, there are two terms to the total energy derivative
+    #     # The first term, f_1 is the derivative of the descirptor multiplied by the model_weights
+    #     # The second term, f_2 is the descriptor multiplied by the derivative of the model_weights
+    #     else:
+    #         # Coefficients for the potentials used
+    #         alphas = np.array([self.potentials[i].weights
+    #                             for i in clusters])
+    #         # Weight of each of the neighbours employed for interpolation, computed via softmax
+    #         # of the distances of the descriptor per atom
+    #         model_weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+
+    #         # First part of the force component, easy
+    #         f_1 = np.einsum("mcd, sd, s -> mc",
+    #                         feat.dX_dr, alphas, model_weights)
+
+    #         # Second part of the force component, complex
+    #         # Direction from the descriptor to each nearest neighbour reference descriptor
+    #         diff_unity_vector = - (feat.X[0][None, :] / nat - self.X_training[neigh_idx])/neigh_dist[:, None]
+
+    #         # Derivative of weights w.r.t. position of descriptor,
+    #         d_weights_d_descr =  np.sum(np.exp(-neigh_dist)[:, None, None]*(diff_unity_vector[:, None, :] - diff_unity_vector[None, :, :]), axis = 0)
+    #         d_weights_d_descr /= np.sum(np.exp(-neigh_dist))
+
+    #         # Derivative of weights w.r.t. position of atom.
+    #         d_weights_d_r = np.einsum('s, sd, mcd -> msc', 
+    #                                  model_weights, d_weights_d_descr, feat.dX_dr)
+            
+    #         # Descriptor multiplied by the derivative of the weights, not sure about the sign
+    #         f_2 = np.einsum("d, sd, msc -> mc", feat.X[0]/nat, alphas, d_weights_d_r) 
+    #         f_ = f_1 - f_2
+
+    #     return f_
