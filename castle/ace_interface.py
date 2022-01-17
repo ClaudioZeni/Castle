@@ -68,6 +68,16 @@ def descriptors_from_frame_no_forces(basis, frame, energy_name="energy"):
     return X
 
 
+def local_descriptors_from_frame(basis, frame, energy_name="energy",
+                                 force_name="force",
+                                 virial_name="virial"):
+    at = frame_to_julia_at(frame, energy_name,
+                           force_name, virial_name)
+    X = Main.environment_descriptor(basis, at.at)
+    dX_dr, dX_ds = Main.environment_d_descriptor(basis, at.at)
+    return  X, dX_dr, dX_ds
+
+
 def local_descriptors_from_frame_no_forces(basis, frame, energy_name="energy"):
     at = frame_to_julia_at(frame, energy_name)
     X = Main.environment_descriptor(basis, at.at)

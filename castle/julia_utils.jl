@@ -22,6 +22,30 @@ function environment_descriptor(shipB, at::AbstractAtoms{T}) where {T}
     return E
 end
 
+# Local : environment descriptor
+function environment_d_descriptor(shipB, at::AbstractAtoms{T}) where {T}
+    # precompute the neighbourlist to count the number of neighbours
+    nlist = neighbourlist(at, cutoff(shipB); storelist=false)
+    maxR = maxneigs(nlist)
+   # allocate space accordingly
+    F_local = zeros(JVec{T}, length(at), length(at), length(shipB))
+    B = alloc_B(shipB, maxR)
+    dB = alloc_dB(shipB, maxR)
+    tmp = alloc_temp_d(shipB, maxR)
+    tmpRZ = (R = zeros(JVec{T}, maxR), Z = zeros(AtomicNumber, maxR))
+     for i = 1:length(at)
+         j, R, Z = neigsz!(tmpRZ, nlist, at, i)
+         fill!(dB, zero(JVec{T}))
+         fill!(B, 0)
+         evaluate_d!(B, dB, tmp, shipB, R, Z, at.Z[i])
+         for a = 1:length(R)
+             F_local[i, j[a], :] .-= dB[:, a]
+         end
+     end
+     virial = compute_virial(F_local, at)
+     return F_local, virial
+ end
+
 # Local : environments for all the atoms in trajectory
 function environment_descriptor_traj(basis, traj)
     A_all = []

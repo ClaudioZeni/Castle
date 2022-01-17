@@ -3,6 +3,7 @@ import numpy as np
 
 from .ace_interface import (descriptors_from_frame,
                             descriptors_from_frame_no_forces,
+                            local_descriptors_from_frame,
                             local_descriptors_from_frame_no_forces,
                             get_basis)
 from .features import GlobalFeatures, LocalFeatures
@@ -26,6 +27,7 @@ class AceGlobalRepresentation(object):
         self.virial_name = virial_name
 
     def transform(self, frames, compute_derivative=True):
+        print(compute_derivative)
         basis, self.n_feat = get_basis(
             self.n_body, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
@@ -98,7 +100,7 @@ class AceLocalRepresentation(object):
         self.force_name = force_name
         self.virial_name = virial_name
 
-    def transform(self, frames):
+    def transform(self, frames, compute_derivative=True):
         basis, self.n_feat = get_basis(
             self.n_body, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
@@ -120,13 +122,38 @@ class AceLocalRepresentation(object):
         species = np.unique(species)
         strides = np.cumsum(strides)
         X = []
+        dX_dr = []
+        dX_ds = []
+        if compute_derivative:
+            dX_dr = []
+            dX_ds = []
         for i_frame in range(len(frames)):
             frame = frames[i_frame]
-            X.append(self._get_local_representation_single_species_no_forces(
-                basis, frame))
+            if compute_derivative:
+                st, nd = strides[i_frame], strides[i_frame + 1]
+                X_, dX_dr_, dX_ds_ =  self._get_local_representation_single_species(basis, frame)
+                dX_ds_ /= frame.get_volume()
+                X.append(X_)
+                dX_dr.append(np.array(dX_dr_))
+                dX_ds.append(np.array(dX_ds_))
+            else:
+                X.append(self._get_local_representation_single_species_no_forces(
+                    basis, frame))
 
-        return LocalFeatures(self, X, None, None, strides, species)
+        if compute_derivative:
+            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, species)
+        else:
+            return LocalFeatures(self, np.array(X), None, None, strides, species)
 
+    def _get_local_representation_single_species(self, basis, frame):
+        X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame,
+                                                               self.energy_name,
+                                                               self.force_name,
+                                                               self.virial_name)
+        return X, dX_dr_local, dX_ds_local
+        
     def _get_local_representation_single_species_no_forces(self, basis, frame):
-        X = local_descriptors_from_frame_no_forces(basis, frame, self.energy_name)
-        return X
+        X_local = local_descriptors_from_frame_no_forces(basis, frame, self.energy_name)
+        return X_local
+
+

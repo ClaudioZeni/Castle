@@ -47,10 +47,27 @@ class LocalFeatures(object):
         self.species = species
 
     def __len__(self):
-        return self.X.shape[0]
+        return len(self.X)
 
     def get_nb_atoms_per_frame(self):
         nat = []
         for st, nd in zip(self.strides[:-1], self.strides[1:]):
             nat.append(nd - st)
         return np.array(nat)
+
+    def get_subset(self, ids):
+
+        strides = [0]
+        for i_frame in ids:
+            st, nd = self.strides[i_frame], self.strides[i_frame + 1]
+            strides.append(nd - st)
+
+        obj = LocalFeatures(
+            self.representation,
+            self.X[ids],
+            self.dX_dr[ids],
+            self.dX_ds[ids],
+            np.cumsum(strides),
+            self.species,
+        )
+        return obj

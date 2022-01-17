@@ -97,6 +97,23 @@ class LPEnsamble(object):
         self.n_neighbours = n_neighbours
         self.X_training = X_training
 
+    def predict(self, features):
+        nat = features.get_nb_atoms_per_frame()
+        neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
+                                    k=self.n_neighbours)
+        e_pred = np.zeros(len(features))
+        f_pred = np.zeros(features.dX_dr.shape[:2])
+        nat_counter = 0
+        for i in np.arange(len(features)):
+            feat = features.get_subset([i])
+            e_pred[i] = self.predict_energy_single(feat, neigh_dist[i],
+                                                            neigh_idx[i], nat[i])
+            f_ = self.predict_forces_single(feat, neigh_dist[i],
+                                         neigh_idx[i], nat[i])
+            f_pred[nat_counter:nat_counter+nat[i]] = f_
+            nat_counter += nat[i]
+        return e_pred, f_pred
+        
     def predict_energy(self, features):
         nat = features.get_nb_atoms_per_frame()
         neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
@@ -133,7 +150,7 @@ class LPEnsamble(object):
             f_pred[nat_counter:nat_counter+nat[i]] = f_
             nat_counter += nat[i]
         return f_pred
-
+                                                       
     def predict_forces_single(self, feat, neigh_dist, neigh_idx, nat):
         """ Definitions:
         m: number of atoms in configuration
@@ -186,7 +203,7 @@ class LPEnsamble(object):
             
             # Descriptor multiplied by the derivative of the weights, not sure about the sign
             f_2 = np.einsum("d, sd, msc -> mc", feat.X[0]/nat, alphas, d_weights_d_r) 
-            f_ = f_1 + f_2
+            f_ = f_1 - f_2
 
         return f_
 

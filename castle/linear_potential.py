@@ -19,6 +19,10 @@ class LinearPotential(object):
         v = -np.einsum("mcd, d -> mc", features.dX_ds, self.weights)
         return v
 
+    def predict(self, features):
+        e = self.predict_energy(features)
+        f = self.predict_forces(features)
+        return e, f
 
 def train_linear_model(features, noise, e, f=None):
 
