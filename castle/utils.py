@@ -158,7 +158,7 @@ def extract_features(folder, train_filename, validation_filename=None,
     if species is None:
         species = list(set(tr_frames[0].get_atomic_numbers()))
     if type(species)==str:
-        species = atomic_numbers[species]
+        species = [atomic_numbers[species]]
 
     representation = AceGlobalRepresentation(N, maxdeg, rcut, species, r0, reg, 
                                              energy_name=energy_name, force_name=force_name)

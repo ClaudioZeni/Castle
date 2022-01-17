@@ -27,7 +27,6 @@ class AceGlobalRepresentation(object):
         self.virial_name = virial_name
 
     def transform(self, frames, compute_derivative=True):
-        print(compute_derivative)
         basis, self.n_feat = get_basis(
             self.n_body, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
@@ -145,6 +144,38 @@ class AceLocalRepresentation(object):
         else:
             return LocalFeatures(self, np.array(X), None, None, strides, species)
 
+    def transform_single(self, frame, compute_derivative=True):
+        basis, self.n_feat = get_basis(
+            self.n_body, self.maxdeg, self.rcut, self.species,
+            self.r0, self.reg, self.rin, self.constants)
+
+        species = []
+        strides = [0]
+        strides.append(len(frame))
+        if isinstance(frame, ase.Atoms):
+            species.extend(frame.get_atomic_numbers())
+        else:
+            for at in frame:
+                species.append(at.atom_type)
+
+        species = np.unique(species)
+        strides = np.cumsum(strides)
+
+        if compute_derivative:
+            X_, dX_dr_, dX_ds_ =  self._get_local_representation_single_species(basis, frame)
+            dX_ds_ /= frame.get_volume()
+            X = np.array([X_])
+            dX_dr = np.array([dX_dr_])
+            dX_ds = np.array([dX_ds_])
+        else:
+            X = np.array([self._get_local_representation_single_species_no_forces(
+                basis, frame)])
+
+        if compute_derivative:
+            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, species)
+        else:
+            return LocalFeatures(self, np.array(X), None, None, strides, species)
+    
     def _get_local_representation_single_species(self, basis, frame):
         X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame,
                                                                self.energy_name,
