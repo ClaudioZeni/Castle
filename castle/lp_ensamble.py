@@ -7,11 +7,11 @@ from sklearn.metrics import silhouette_score
 def optimize_n_clusters(X):
     S = []
     for i in np.arange(2, min(len(X)//10, 10)):
-        gmm = GaussianMixture(n_components=i, n_init=3)
+        gmm = GaussianMixture(n_components=i, n_init=3, reg_covar=1e-3)
         labels = gmm.fit_predict(X)
         S.append(silhouette_score(X, labels, metric='euclidean'))
-    nopt = 2 + np.argmax(S*np.arange(1, 1+len(S))**0.5)
-    gmm = GaussianMixture(n_components=nopt, n_init=5).fit(X)
+    nopt = np.argmax(S*np.arange(1, 1+len(S))**0.5)
+    gmm = GaussianMixture(n_components=nopt, n_init=5, reg_covar=1e-3).fit(X)
     print("Using %i clusters" %(nopt))
     return gmm
 
@@ -45,7 +45,7 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
         if n_clusters == 'auto':
             gmm = optimize_n_clusters(X)
         else:
-            gmm = GaussianMixture(n_components=n_clusters, n_init=5).fit(X)
+            gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-3).fit(X)
         labels = gmm.predict(X)
 
         weights = gmm.weights_
@@ -60,7 +60,7 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
         if n_clusters == 'auto':
             gmm = optimize_n_clusters(X)
         else:
-            gmm = GaussianMixture(n_components=n_clusters, n_init=5).fit(X)
+            gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-3).fit(X)
         labels = gmm.predict(X)
 
         weights = gmm.weights_
@@ -263,6 +263,7 @@ class LPEnsamble(object):
         proba = proba * self.weights
         # Normalize to get sums up to 1
         proba = proba/np.sum(proba)
+        proba = np.nan_to_num(proba, copy=False, nan=0)
 
         if compute_der:
             der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
