@@ -65,7 +65,7 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
 
         weights = gmm.weights_
         centers = gmm.means_ * std + mean[None, :]
-        precisions = gmm.precisions_[:, :-1, :-1] / std
+        precisions = gmm.precisions_ / std
 
     return labels, centers, precisions, weights
 
