@@ -73,7 +73,7 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
 class LPEnsamble(object):
     def __init__(self, potentials, representation,
                  centers, precisions, weights, 
-                 train_labels, X_training):
+                 train_labels, X_training, mean_peratom_energy):
         self.potentials = potentials
         self.representation = representation
         self.train_labels = train_labels
@@ -83,6 +83,7 @@ class LPEnsamble(object):
         self.weights = weights
         self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
         self.cov_dets = np.array([1/np.linalg.det(precisions[i]) for i in range(len(weights))])
+        self.mean_peratom_energy = mean_peratom_energy
         
 
     def predict(self, features):
@@ -94,7 +95,6 @@ class LPEnsamble(object):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
             weights, der_weighs = self.get_models_weight(norm_feat, feat.dX_dr, True)
-
             # First part of the force component, easy
             f_1 = np.einsum("mcd, sd, s -> mc",
                             feat.dX_dr, self.alphas, weights)
@@ -105,7 +105,7 @@ class LPEnsamble(object):
             f_pred[nat_counter:nat_counter+nat[i]] = f_1 - f_2
             nat_counter += nat[i]
 
-            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights)
+            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights) + self.mean_peratom_energy*nat[i]
 
         return e_pred, f_pred
 
@@ -115,7 +115,7 @@ class LPEnsamble(object):
         for i in range(len(features.X)):
             feat = features.get_subset([i])
             weights = self.get_models_weight(feat.X[0] / nat[i, None])
-            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights)
+            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights) + self.mean_peratom_energy*nat[i]
         return e_pred
 
     def predict_forces(self, features):
@@ -263,7 +263,6 @@ class LPEnsamble(object):
         proba = proba * self.weights
         # Normalize to get sums up to 1
         proba = proba/np.sum(proba)
-        proba = np.nan_to_num(proba, copy=False, nan=0)
 
         if compute_der:
             der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
@@ -276,12 +275,13 @@ class LPEnsamble(object):
 
 
 def train_ensamble_linear_model(
-    features, noise, e, f, n_clusters=10, clustering="e_gmm"
-):
+    features, noise, e, f, n_clusters=10, clustering="e_gmm"):
     nat = features.get_nb_atoms_per_frame()
     labels, centers, precisions, weights = cluster_gvect(features.X / nat[:, None],
                                  e / nat, n_clusters, clustering)
 
+    mean_peratom_energy = np.mean(e / nat)
+    e_adj = e - nat*mean_peratom_energy
     potentials = {}
     structure_ids = np.arange(len(features))
     for lab in list(set(labels)):
@@ -290,12 +290,12 @@ def train_ensamble_linear_model(
         fmask = np.zeros(0, dtype="bool")
         for i in np.arange(len(nat)):
             fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
-        pot = train_linear_model(features_, noise, e[mask], f[fmask])
+        pot = train_linear_model(features_, noise, e_adj[mask], f[fmask])
 
         potentials[lab] = pot
 
     model = LPEnsamble(
         potentials, features.representation, centers, precisions, 
-        weights, labels, features.X / nat[:, None]
+        weights, labels, features.X / nat[:, None], mean_peratom_energy
     )
     return model
