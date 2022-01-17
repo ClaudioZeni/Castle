@@ -197,12 +197,11 @@ def extract_local_features(folder, train_filename, validation_filename=None,
     tr_features = representation.transform(tr_frames, compute_derivative)
     if validation_filename is not None:
         val_features = representation.transform(val_frames)
-        # dump(folder + f"/tr_local_features_N_{N}_d_{maxdeg}.xz", tr_features)
-        # dump(folder + f"/val_local_features_N_{N}_d_{maxdeg}.xz", val_features)
+        print("WARNING: saving features is not available for local features")
         return tr_features, val_features
     	
     else:
-        # dump(folder + f"/local_features_N_{N}_d_{maxdeg}.xz", tr_features)
+        print("WARNING: saving features is not available for local features")
         return tr_features
 
 
