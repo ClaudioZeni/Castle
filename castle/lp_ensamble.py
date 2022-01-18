@@ -189,13 +189,22 @@ class LPEnsamble(object):
         # Multiply by GMM weight
         proba = proba * self.weights
         # Normalize to get sums up to 1
-        proba = proba/np.sum(proba)
+
+        # To avoid nans if all clusters have probability 0 or nan
+        proba = np.nan_to_num(proba, copy=False, nan=0)
+        if not sum(proba) == 0:
+            proba = proba/np.sum(proba)
 
         if compute_der:
-            der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
-            single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)
-            softmax_der = -proba[None, :]*proba[:, None] + np.diag(proba)
-            proba_der = np.einsum('tmc, ts -> msc', single_proba_der, softmax_der)
+            if not sum(proba) == 0:
+                der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
+                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)
+                softmax_der = -proba[None, :]*proba[:, None] + np.diag(proba)
+                proba_der = np.einsum('tmc, ts -> msc', single_proba_der, softmax_der)
+
+            # To avoid absurd numbers if all clusters have probability 0 or nan
+            else:
+                proba_der = np.zeros((dX_dr.shape[0], len(proba), 3))
             return proba, proba_der
         else:
             return proba
