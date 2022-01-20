@@ -2,7 +2,7 @@ import numpy as np
 from .linear_potential import train_linear_model
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score
-
+from sklearn.cluster import KMeans
 
 def optimize_n_clusters(X):
     S = []
@@ -41,31 +41,31 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
         X = (X - mean[None, :]) / std[None, None]
         e = (e - np.mean(e)) / np.std(e)
         X = np.concatenate((X, e[:, None]), axis=1)
-        
         if n_clusters == 'auto':
             gmm = optimize_n_clusters(X)
         else:
             gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
         labels = gmm.predict(X)
-
         weights = gmm.weights_
         centers = gmm.means_[:, :-1] * std + mean[None, :]
-        precisions = gmm.precisions_[:, :-1, :-1] / std
+        precisions = gmm.precisions_[:, :-1, :-1] / std / 20
 
     elif clustering == 'gmm':
-        mean = np.mean(X, axis=0)
-        std = np.std(X)
-        X = (X - mean[None, :]) / std[None, None]
-
         if n_clusters == 'auto':
             gmm = optimize_n_clusters(X)
         else:
             gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
         labels = gmm.predict(X)
-
         weights = gmm.weights_
-        centers = gmm.means_ * std + mean[None, :]
-        precisions = gmm.precisions_ / std
+        centers = gmm.means_ 
+        precisions = gmm.precisions_  / 20
+
+    elif clustering == 'kmeans':
+        kmeans = KMeans(n_clusters=n_clusters)
+        labels = kmeans.fit_predict(X)
+        centers = kmeans.cluster_centers_
+        precisions = 1/np.array([np.std(X[labels == i], axis = 0) for i in range(n_clusters)])
+        weights = np.array([len(labels == i) for i in range(n_clusters)])
 
     return labels, centers, precisions, weights
 
@@ -73,15 +73,17 @@ def cluster_gvect(X, e, n_clusters='auto', clustering='e_gmm'):
 class LPEnsamble(object):
     def __init__(self, potentials, representation,
                  centers, precisions, weights, 
-                 mean_peratom_energy):
+                 mean_peratom_energy, clustering):
         self.potentials = potentials
         self.representation = representation
         self.centers = centers 
         self.precisions = precisions
         self.weights = weights
         self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
-        self.cov_dets = np.array([1/np.linalg.det(precisions[i]) for i in range(len(weights))])
+        if clustering == 'gmm':
+                self.cov_dets = np.array([1/np.linalg.det(precisions[i]) for i in range(len(weights))])
         self.mean_peratom_energy = mean_peratom_energy
+        self.clustering = clustering
         
 
     def predict(self, features):
@@ -161,6 +163,56 @@ class LPEnsamble(object):
         return s_
 
     def get_models_weight(self, X_avg, dX_dr=None, compute_der=False):
+        if self.clustering == 'gmm' or self.clustering == 'e_gmm':
+            return self.get_models_weight_gmm(X_avg, dX_dr, compute_der)
+
+        elif self.clustering == 'kmeans':
+            return self.get_models_weight_kmeans(X_avg, dX_dr, compute_der)
+
+    def get_models_weight_kmeans(self, X_avg, dX_dr=None, compute_der=False):
+        """Compute weight (and derivative w.r.t. each atom's position)
+            of models for a single structure.
+
+        m: number of atoms in configuration
+        c: cartesian coordinates
+        d: number of dimensions of descriptor
+        s: number of models
+
+        X_avg: (d)
+        dX_dr: (m, c, d)
+        self.centers : (s, d) 
+        self.precisions : (s, d) 
+        self.weights : (s)
+        self.cov_dets : (s)
+        proba: (s)
+        single_proba_der: (s, m, c)
+        softmax_der: (s, s)
+        proba_der: (m, s, c)
+        """
+        # Distance from center
+        diff = X_avg[None, :] - self.centers[:, :]
+        # Compute exponential disrance
+        proba = self.weights**0.5/np.sum((self.precisions*diff**2), axis = 1)
+        # Normalize to get sums up to 1
+        # To avoid nans if all clusters have probability 0 or nan
+        proba = np.nan_to_num(proba, copy=False, nan=0)
+        if not sum(proba) == 0:
+            proba_sum = np.sum(proba)
+            proba_norm = proba/proba_sum
+        if compute_der:
+            if not sum(proba) == 0:
+                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -2/diff)
+                sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
+                proba_der = np.einsum('smc, ts -> msc', single_proba_der, sum_der)
+
+            # To avoid absurd numbers if all clusters have probability 0 or nan
+            else:
+                proba_der = np.zeros((dX_dr.shape[0], len(proba), 3))
+            return proba_norm, proba_der
+        else:
+            return proba_norm
+
+    def get_models_weight_gmm(self, X_avg, dX_dr=None, compute_der=False):
         """Compute weight (and derivative w.r.t. each atom's position)
             of models for a single structure.
 
@@ -199,8 +251,8 @@ class LPEnsamble(object):
             if not sum(proba) == 0:
                 der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
                 single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)
-                softmax_der = -proba[None, :]*proba[:, None] + np.diag(proba)
-                proba_der = np.einsum('tmc, ts -> msc', single_proba_der, softmax_der)
+                softmax_der = - proba[:, None] * proba[None, :] + np.diag(proba)
+                proba_der = np.einsum('smc, st -> msc', single_proba_der, softmax_der)
 
             # To avoid absurd numbers if all clusters have probability 0 or nan
             else:
@@ -234,7 +286,7 @@ def train_ensamble_linear_model(
 
     model = LPEnsamble(
         potentials, features.representation, centers, precisions, 
-        weights, mean_peratom_energy
+        weights, mean_peratom_energy, clustering
     )
     return model
 
