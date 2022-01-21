@@ -11,7 +11,6 @@ class LPEnsamble(object):
         self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
         self.mean_peratom_energy = mean_peratom_energy
         self.clustering = clustering
-        
 
     def predict(self, features):
         nat = features.get_nb_atoms_per_frame()
@@ -91,7 +90,7 @@ class LPEnsamble(object):
 
 
 def train_ensamble_linear_model(
-    features, noise, e, f, n_clusters=10, clustering_type="e_gmm"):
+    features, noise, e, f, n_clusters=10, clustering_type="kmeans"):
     nat = features.get_nb_atoms_per_frame()
     clustering = Clustering(clustering_type)
     clustering.fit(features.X / nat[:, None], e / nat, n_clusters)

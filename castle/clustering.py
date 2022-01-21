@@ -8,16 +8,19 @@ class Clustering(object):
     def __init__(self, clustering_type):
         self.clustering_type = clustering_type 
      
-    def optimize_n_clusters(self, X):
+    def optimize_n_clusters(self, X, model):
         S = []
-        for i in np.arange(2, min(len(X)//10, 10)):
-            gmm = GaussianMixture(n_components=i, n_init=3, reg_covar=1e-2)
-            labels = gmm.fit_predict(X)
+        for i in np.arange(2, min(len(X)//10, 20)):
+            model.n_components = i
+            model.n_clusters = i
+            labels = model.fit_predict(X)
             S.append(silhouette_score(X, labels, metric='euclidean'))
         nopt = np.argmax(S*np.arange(1, 1+len(S))**0.5)
-        gmm = GaussianMixture(n_components=nopt, n_init=5, reg_covar=1e-2).fit(X)
+        model.n_components = nopt
+        model.n_clusters = nopt        
+        model.fit(X)
         print("Using %i clusters" %(nopt))
-        return gmm
+        return model
 
     def fit(self, X, e, n_clusters='auto'):
         """Auxiliary function that calls the correct clustering
@@ -45,34 +48,39 @@ class Clustering(object):
             e = (e - np.mean(e)) / np.std(e)
             X = np.concatenate((X, e[:, None]), axis=1)
             if n_clusters == 'auto':
-                gmm = self.optimize_n_clusters(X)
+                model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
             else:
-                gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
-            self.labels = gmm.predict(X)
-            self.weights = gmm.weights_
-            self.centers = gmm.means_[:, :-1] * std + mean[None, :]
-            self.precisions = gmm.precisions_[:, :-1, :-1] / std
+                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
+            self.n_clusters = model.n_components
+            self.labels = model.predict(X)
+            self.weights = model.weights_
+            self.centers = model.means_[:, :-1] * std + mean[None, :]
+            self.precisions = model.precisions_[:, :-1, :-1] / std
             self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
         elif self.clustering_type == 'gmm':
             if n_clusters == 'auto':
-                gmm = self.optimize_n_clusters(X)
+                model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
             else:
-                gmm = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
-            self.labels = gmm.predict(X)
-            self.weights = gmm.weights_
-            self.centers = gmm.means_ 
-            self.precisions = gmm.precisions_
+                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
+            self.n_clusters = model.n_components
+            self.labels = model.predict(X)
+            self.weights = model.weights_
+            self.centers = model.means_ 
+            self.precisions = model.precisions_
             self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
         elif self.clustering_type == 'kmeans':
-            kmeans = KMeans(n_clusters=n_clusters)
-            self.labels = kmeans.fit_predict(X)
-            self.centers = kmeans.cluster_centers_
-            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(n_clusters)])
-            self.weights = np.array([len(self.labels == i) for i in range(n_clusters)])
-
-        self.n_clusters = n_clusters
+            if n_clusters == 'auto':
+                model = self.optimize_n_clusters(X, KMeans())
+            else:
+                model = KMeans(n_clusters=n_clusters).fit(X)
+            self.n_clusters = model.n_clusters
+            self.labels = model.predict(X)
+            self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
+            self.centers = model.cluster_centers_
+            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+            self.cov_dets = None
 
     def get_models_weight(self, X_avg, dX_dr=None, compute_der=False):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
@@ -104,7 +112,7 @@ class Clustering(object):
         # Distance from center
         diff = X_avg[None, :] - self.centers[:, :]
         # Compute exponential disrance
-        proba = self.weights**0.5/np.sum((self.precisions*diff**2), axis = 1)
+        proba = self.weights**0.5/np.sum((self.precisions*diff**4), axis = 1)
         # Normalize to get sums up to 1
         # To avoid nans if all clusters have probability 0 or nan
         proba = np.nan_to_num(proba, copy=False, nan=0)
@@ -113,7 +121,7 @@ class Clustering(object):
             proba_norm = proba/proba_sum
         if compute_der:
             if not sum(proba) == 0:
-                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -2/diff)
+                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/diff)
                 sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
                 proba_der = np.einsum('smc, ts -> msc', single_proba_der, sum_der)
 
