@@ -1,18 +1,110 @@
 import numpy as np
-from .linear_potential import train_linear_model
+from sklearn.model_selection import StratifiedShuffleSplit
+from .linear_potential import LinearPotential
 from .clustering import Clustering
+from ase.calculators.calculator import Calculator
 
 
 class LPEnsamble(object):
-    def __init__(self, potentials, representation,
-                 mean_peratom_energy, clustering):
-        self.potentials = potentials
-        self.representation = representation
-        self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
-        self.mean_peratom_energy = mean_peratom_energy
-        self.clustering = clustering
+    def __init__(self, clustering_type='kmeans', n_clusters='auto',
+                 baseline=None, baseline_percentile=0):
+        self.clustering_type = clustering_type
+        self.clustering = Clustering(self.clustering_type, baseline_percentile)
+        self.n_clusters = n_clusters
+        self.baseline = baseline
+        self.e_b = None
+        self.f_b = None
 
-    def predict(self, features):
+    def fit(self, traj, representation, noise=1e-6, 
+            features=None, energy_name=None, force_name=None):
+        self.representation = representation
+        self.noise = noise
+        if self.baseline:
+            self.compute_baseline_predictions(traj)
+
+        e = np.array([t.info[energy_name] for t in traj])
+        if force_name is not None:
+            f = []
+            [f.extend(t.get_array(force_name)) for t in traj]
+            f = np.array(f)
+        else:
+            f = None
+        if features is None:
+            features = self.representation.transform(traj)
+        features = self.representation.transform(traj)
+        self.fit_from_features(self, features, e, f, noise=1e-6)
+
+    def fit_from_features(self, features, e, f, noise=1e-6):
+        self.noise = noise
+        self.representation = features.representation
+        nat = features.get_nb_atoms_per_frame()
+        self.clustering.fit(features.X / nat[:, None], e / nat, self.n_clusters)
+
+        if self.e_b is not None:
+            e -= self.e_b
+            f -= self.f_b
+
+        # Remove atomic energy contributions
+        self.mean_peratom_energy = np.mean(e / nat)
+        e_adj = e - nat*self.mean_peratom_energy
+
+        potentials = {}
+        structure_ids = np.arange(len(features))
+        for lab in list(set(self.clustering.labels)):
+            mask = self.clustering.labels == lab
+            features_ = features.get_subset(structure_ids[mask])
+            fmask = np.zeros(0, dtype="bool")
+            for i in np.arange(len(nat)):
+                fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
+            pot = LinearPotential()
+            pot.fit_from_features(features_, self.noise, e_adj[mask], f[fmask], mean_peratom=False)
+
+            potentials[lab] = pot
+
+        self.potentials = potentials
+        self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
+
+    def compute_baseline_predictions(self, traj):
+        self.calc = Calculator(self.baseline)
+        e_b = []
+        f_b = []
+        for t in traj:
+            t.set_calculator(self.calc)
+            e_b.append(t.get_potential_energy())
+            f_b.extend(t.get_forces())
+        e_b = np.array(e_b)
+        f_b = np.array(f_b)
+        self.e_b = e_b
+        self.f_b = f_b
+
+    def predict(self, atoms, forces=True, stress=False):
+        at = atoms.copy()
+        at.wrap(eps=1e-11)
+        manager = [at]
+        features = self.representation.transform(manager)
+        if forces:
+            e_model, f_model = self.predict_from_features(features)
+        else:
+            e_model = self.predict_energy_from_features(features)
+        if stress:
+            s_model = self.predict_stress_from_features(features)
+
+        if self.baseline is not None:
+            at.set_calculator(self.calc)
+            e_model += at.get_potential_energy()
+            if forces:
+                f_model += at.get_forces()
+            if stress:
+                s_model += at.get_stresses()
+
+        if forces and stress:
+            return e_model, f_model, s_model
+        elif forces:
+            return e_model, f_model
+        else:
+            return e_model
+
+    def predict_from_features(self, features):
         nat = features.get_nb_atoms_per_frame()
         e_pred = np.zeros(len(features.X))
         f_pred = np.zeros(features.dX_dr.shape[:2])
@@ -35,7 +127,7 @@ class LPEnsamble(object):
 
         return e_pred, f_pred
 
-    def predict_energy(self, features):
+    def predict_energy_from_features(self, features):
         nat = features.get_nb_atoms_per_frame()
         e_pred = np.zeros(len(features.X))
         for i in range(len(features.X)):
@@ -44,7 +136,7 @@ class LPEnsamble(object):
             e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights) + self.mean_peratom_energy*nat[i]
         return e_pred
 
-    def predict_forces(self, features):
+    def predict_forces_from_features(self, features):
         nat = features.get_nb_atoms_per_frame()
         f_pred = np.zeros(features.dX_dr.shape[:2])
         nat_counter = 0
@@ -64,7 +156,7 @@ class LPEnsamble(object):
 
         return f_pred
 
-    def predict_stress(self, features):
+    def predict_stress_from_features(self, features):
         nat = features.get_nb_atoms_per_frame()
         neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
                                     k=self.n_neighbours)
@@ -74,7 +166,7 @@ class LPEnsamble(object):
             s_pred[i] = self.predict_stress_single(feat, neigh_dist[i], neigh_idx[i])
         return s_pred
 
-    def predict_stress_single(self, feat, neigh_dist, neigh_idx):
+    def predict_stress_single_from_features(self, feat, neigh_dist, neigh_idx):
         clusters = self.train_labels[neigh_idx]
         # If all neighbours are in the same cluster, easy
         if len(np.unique(clusters)) == 1:
@@ -89,36 +181,7 @@ class LPEnsamble(object):
         return s_
 
 
-def train_ensamble_linear_model(
-    features, noise, e, f, n_clusters=10, clustering_type="kmeans"):
-    nat = features.get_nb_atoms_per_frame()
-    clustering = Clustering(clustering_type)
-    clustering.fit(features.X / nat[:, None], e / nat, n_clusters)
-
-    # Remove atomic energy contributions
-    mean_peratom_energy = np.mean(e / nat)
-    e_adj = e - nat*mean_peratom_energy
-
-    potentials = {}
-    structure_ids = np.arange(len(features))
-    for lab in list(set(clustering.labels)):
-        mask = clustering.labels == lab
-        features_ = features.get_subset(structure_ids[mask])
-        fmask = np.zeros(0, dtype="bool")
-        for i in np.arange(len(nat)):
-            fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
-        pot = train_linear_model(features_, noise, e_adj[mask], f[fmask], mean_peratom=False)
-
-        potentials[lab] = pot
-
-    model = LPEnsamble(
-        potentials, features.representation, mean_peratom_energy, clustering
-    )
-    return model
-
-
-# Old stuff
-    
+# Old stuff    
     # def predict_forces(self, features):
     #     nat = features.get_nb_atoms_per_frame()
     #     neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],

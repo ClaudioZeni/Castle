@@ -1,5 +1,5 @@
-from .linear_potential import LinearPotential, train_linear_model
-from .lp_ensamble import LPEnsamble, train_ensamble_linear_model
+from .linear_potential import LinearPotential
+from .lp_ensamble import LPEnsamble
 from .calc_ase_interface import ASEMLCalculator
 from .representation import AceGlobalRepresentation, AceLocalRepresentation
 from .features import GlobalFeatures

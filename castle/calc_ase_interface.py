@@ -23,12 +23,10 @@ class ASEMLCalculator(Calculator):
 
     nolabel = True
 
-    def __init__(self, model, representation, **kwargs):
+    def __init__(self, model, **kwargs):
         super().__init__(**kwargs)
         self.model = model
-        self.representation = representation
         self.kwargs = kwargs
-        self.manager = None
 
     def calculate(
         self,
@@ -36,22 +34,18 @@ class ASEMLCalculator(Calculator):
         properties=["energy", "forces", "stress"],
         system_changes=all_changes,
     ):
-        Calculator.calculate(self, atoms, properties, system_changes)
-        at = self.atoms.copy()
-        at.wrap(eps=1e-11)
-        self.manager = [at]
-        features = self.representation.transform(self.manager)
         
-        if "forces" in properties:
-            energy, forces = self.model.predict(features)
+        if "forces" and "stress" in properties:
+            energy, forces, stress = self.model.predict(atoms, forces=True, stress=True)
             self.results["forces"] = forces
-
+            self.results["stress"] = stress
+        elif "forces" in properties:
+            energy, forces = self.model.predict(atoms, forces=True)
+            self.results["forces"] = forces
         else:
-            energy = self.model.predict_energy(features)
+            energy = self.model.predict(atoms, forces=False)
 
         self.results["energy"] = energy
         self.results["free_energy"] = energy
-        
-        if "stress" in properties:
-            self.results["stress"] = self.model.predict_stress(features).flatten()
+
 

@@ -190,6 +190,15 @@ def extract_local_features(folder, train_filename, validation_filename=None,
         species = list(set(tr_frames[0].get_atomic_numbers()))
     if type(species)==str:
         species = atomic_numbers[species]
+    if type(species) == list:
+        species_ = []
+        for i in species:
+            if type(i) == str:
+                species_.append(atomic_numbers[species])
+            else:
+                species_.append(i)
+        species = list(species_)
+        del species_
 
     representation = AceLocalRepresentation(N, maxdeg, rcut, species, r0, reg, 
                                              energy_name=energy_name, force_name=force_name)

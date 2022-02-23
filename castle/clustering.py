@@ -5,8 +5,9 @@ import numpy as np
 
 
 class Clustering(object):
-    def __init__(self, clustering_type):
+    def __init__(self, clustering_type, baseline_percentile=0):
         self.clustering_type = clustering_type 
+        self.baseline_percentile = baseline_percentile
      
     def optimize_n_clusters(self, X, model):
         S = []
@@ -44,15 +45,15 @@ class Clustering(object):
             # on the magnitude of each component of X.
             mean = np.mean(X, axis=0)
             std = np.std(X)
-            X = (X - mean[None, :]) / std[None, None]
+            X_ = (X - mean[None, :]) / std[None, None]
             e = (e - np.mean(e)) / np.std(e)
-            X = np.concatenate((X, e[:, None]), axis=1)
+            X_ = np.concatenate((X_, e[:, None]), axis=1)
             if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
+                model = self.optimize_n_clusters(X_, GaussianMixture(n_init=5, reg_covar=1e-2))
             else:
-                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
+                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X_)
             self.n_clusters = model.n_components
-            self.labels = model.predict(X)
+            self.labels = model.predict(X_)
             self.weights = model.weights_
             self.centers = model.means_[:, :-1] * std + mean[None, :]
             self.precisions = model.precisions_[:, :-1, :-1] / std
@@ -81,6 +82,33 @@ class Clustering(object):
             self.centers = model.cluster_centers_
             self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
             self.cov_dets = None
+
+        if self.baseline_percentile > 0:
+            self.get_baseline_hyperparameter(X)
+        else:
+            self.baseline_prob = 0
+            
+    def get_baseline_hyperparameter(self, X):
+        """
+        order shape: n, s, d
+        """
+        diff = X[:, None, :] - self.centers[None, :, :]
+
+        if self.clustering_type == 'kmeans':
+            # Compute exponential disrance
+            proba = self.weights[None, :]**0.5/np.sum((self.precisions[None, :, :]*diff**4), axis = 2)
+            # Normalize to get sums up to 1
+
+        elif self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
+            # Compute exponential disrance
+            proba = np.exp(-0.5*(np.einsum('nsf, sdf, nsd -> ns', diff, self.precisions, diff)))
+            # Normalize for determinant of covariance and number of dimensions
+            proba = proba/(((2*np.pi)**X.shape[1]*self.cov_dets[None, :])**0.5)
+            # Multiply by GMM weight
+            proba = proba * self.weights[None, :]
+        proba = np.nan_to_num(proba, copy=False, nan=0)
+        self.baseline_prob = np.sort(np.ravel(proba))[
+            int(self.baseline_percentile*proba.shape[0]*proba.shape[1])]
 
     def get_models_weight(self, X_avg, dX_dr=None, compute_der=False):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
@@ -117,11 +145,11 @@ class Clustering(object):
         # To avoid nans if all clusters have probability 0 or nan
         proba = np.nan_to_num(proba, copy=False, nan=0)
         if not sum(proba) == 0:
-            proba_sum = np.sum(proba)
+            proba_sum = np.sum(proba) + self.baseline_prob
             proba_norm = proba/proba_sum
         if compute_der:
             if not sum(proba) == 0:
-                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/diff)
+                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/self.precisions/diff)
                 sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
                 proba_der = np.einsum('smc, ts -> msc', single_proba_der, sum_der)
 
@@ -165,7 +193,8 @@ class Clustering(object):
         # To avoid nans if all clusters have probability 0 or nan
         proba = np.nan_to_num(proba, copy=False, nan=0)
         if not sum(proba) == 0:
-            proba = proba/np.sum(proba)
+            proba_sum = np.sum(proba) + self.baseline_prob
+            proba = proba/proba_sum
 
         if compute_der:
             if not sum(proba) == 0:
