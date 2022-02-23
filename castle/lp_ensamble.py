@@ -12,6 +12,9 @@ class LPEnsamble(object):
         self.baseline_calculator = baseline_calculator
         if self.baseline_calculator is not None and baseline_percentile==0:
             baseline_percentile = 0.1
+            print("""WARNING: Baseline has been given but baseline_percentile is set to 0.
+        This would cause baseline to be ignored.
+        Setting baseline_percentile to 0.1""")
         self.clustering = Clustering(self.clustering_type, baseline_percentile)
         self.n_clusters = n_clusters
         self.e_b = None
