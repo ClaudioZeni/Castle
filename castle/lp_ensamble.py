@@ -7,32 +7,33 @@ from ase.calculators.calculator import Calculator
 
 class LPEnsamble(object):
     def __init__(self, clustering_type='kmeans', n_clusters='auto',
-                 baseline=None, baseline_percentile=0):
+                 baseline_calculator=None, baseline_percentile=0):
         self.clustering_type = clustering_type
+        self.baseline_calculator = baseline_calculator
+        if self.baseline_calculator is not None and baseline_percentile==0:
+            baseline_percentile = 0.1
         self.clustering = Clustering(self.clustering_type, baseline_percentile)
         self.n_clusters = n_clusters
-        self.baseline = baseline
         self.e_b = None
         self.f_b = None
 
-    def fit(self, traj, representation, noise=1e-6, 
-            features=None, energy_name=None, force_name=None):
+    def fit(self, traj, representation, noise=1e-6, features=None):
         self.representation = representation
         self.noise = noise
-        if self.baseline:
+        if self.baseline_calculator:
             self.compute_baseline_predictions(traj)
 
-        e = np.array([t.info[energy_name] for t in traj])
-        if force_name is not None:
+        e = np.array([t.info[representation.energy_name] for t in traj])
+        if representation.force_name is not None:
             f = []
-            [f.extend(t.get_array(force_name)) for t in traj]
+            [f.extend(t.get_array(representation.force_name)) for t in traj]
             f = np.array(f)
         else:
             f = None
         if features is None:
             features = self.representation.transform(traj)
         features = self.representation.transform(traj)
-        self.fit_from_features(self, features, e, f, noise=1e-6)
+        self.fit_from_features(features, e, f, noise=1e-6)
 
     def fit_from_features(self, features, e, f, noise=1e-6):
         self.noise = noise
@@ -65,11 +66,10 @@ class LPEnsamble(object):
         self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
 
     def compute_baseline_predictions(self, traj):
-        self.calc = Calculator(self.baseline)
         e_b = []
         f_b = []
         for t in traj:
-            t.set_calculator(self.calc)
+            t.set_calculator(self.baseline_calculator)
             e_b.append(t.get_potential_energy())
             f_b.extend(t.get_forces())
         e_b = np.array(e_b)
@@ -77,11 +77,12 @@ class LPEnsamble(object):
         self.e_b = e_b
         self.f_b = f_b
 
-    def predict(self, atoms, forces=True, stress=False):
+    def predict(self, atoms, forces=True, stress=False, features=None):
         at = atoms.copy()
         at.wrap(eps=1e-11)
         manager = [at]
-        features = self.representation.transform(manager)
+        if features is None:
+            features = self.representation.transform(manager)
         if forces:
             e_model, f_model = self.predict_from_features(features)
         else:
@@ -89,8 +90,8 @@ class LPEnsamble(object):
         if stress:
             s_model = self.predict_stress_from_features(features)
 
-        if self.baseline is not None:
-            at.set_calculator(self.calc)
+        if self.baseline_calculator is not None:
+            at.set_calculator(self.baseline_calculator)
             e_model += at.get_potential_energy()
             if forces:
                 f_model += at.get_forces()

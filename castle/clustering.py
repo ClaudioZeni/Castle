@@ -56,7 +56,7 @@ class Clustering(object):
             self.labels = model.predict(X_)
             self.weights = model.weights_
             self.centers = model.means_[:, :-1] * std + mean[None, :]
-            self.precisions = model.precisions_[:, :-1, :-1] / std
+            self.precisions = model.precisions_[:, :-1, :-1] / std / 100
             self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
         elif self.clustering_type == 'gmm':
@@ -68,7 +68,7 @@ class Clustering(object):
             self.labels = model.predict(X)
             self.weights = model.weights_
             self.centers = model.means_ 
-            self.precisions = model.precisions_
+            self.precisions = model.precisions_ / 100
             self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
         elif self.clustering_type == 'kmeans':
