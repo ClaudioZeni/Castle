@@ -10,11 +10,11 @@ from .features import GlobalFeatures, LocalFeatures
 
 
 class AceGlobalRepresentation(object):
-    def __init__(self, n_body, maxdeg, rcut, species, r0=1.0,
+    def __init__(self, N, maxdeg, rcut, species, r0=1.0,
                  reg=1e-8, rin=1.0, constants=False,
                  energy_name="dft_energy", force_name="dft_force",
                  virial_name="dft_virial"):
-        self.n_body = n_body
+        self.N = N
         self.maxdeg = maxdeg
         self.rcut = rcut
         self.species = species
@@ -28,7 +28,7 @@ class AceGlobalRepresentation(object):
 
     def transform(self, frames, compute_derivative=True):
         basis, self.n_feat = get_basis(
-            self.n_body, self.maxdeg, self.rcut, self.species,
+            self.N, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
         if not isinstance(frames, list):
             frames = [frames]
@@ -83,11 +83,11 @@ class AceGlobalRepresentation(object):
 
 
 class AceLocalRepresentation(object):
-    def __init__(self, n_body, maxdeg, rcut, species, r0=1.0,
+    def __init__(self, N, maxdeg, rcut, species, r0=1.0,
                  reg=1e-8, rin=1.0, constants=False,
                  energy_name="dft_energy", force_name="dft_force",
                  virial_name="dft_virial"):
-        self.n_body = n_body
+        self.N = N
         self.maxdeg = maxdeg
         self.rcut = rcut
         self.species = species
@@ -101,7 +101,7 @@ class AceLocalRepresentation(object):
 
     def transform(self, frames, compute_derivative=True):
         basis, self.n_feat = get_basis(
-            self.n_body, self.maxdeg, self.rcut, self.species,
+            self.N, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
         if not isinstance(frames, list):
             frames = [frames]
@@ -146,7 +146,7 @@ class AceLocalRepresentation(object):
 
     def transform_single(self, frame, compute_derivative=True):
         basis, self.n_feat = get_basis(
-            self.n_body, self.maxdeg, self.rcut, self.species,
+            self.N, self.maxdeg, self.rcut, self.species,
             self.r0, self.reg, self.rin, self.constants)
 
         species = []

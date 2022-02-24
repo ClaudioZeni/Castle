@@ -2,12 +2,11 @@ import numpy as np
 
 
 class LinearPotential(object):
-    def __init__(self):
-        pass
-
-    def fit(self, traj, representation, noise=1e-6, 
-            features=None, energy_name=None, force_name=None):
+    def __init__(self, representation):
         self.representation = representation
+
+    def fit(self, traj, noise=1e-6, 
+            features=None, energy_name=None, force_name=None):
         self.noise = noise
 
         e = np.array([t.info[energy_name] for t in traj])

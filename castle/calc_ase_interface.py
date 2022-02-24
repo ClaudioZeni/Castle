@@ -9,10 +9,8 @@ class ASEMLCalculator(Calculator):
     Parameters
     ----------
     model : class
-        a trained model of the rascal library that can predict the energy and
+        a trained model of the castle library that can predict the energy and
         derivaties of the energy w.r.t. atomic positions
-    representation : class
-        a representation calculator of rascal compatible with the trained model
     """
 
     implemented_properties = ["energy", "forces", "stress"]
