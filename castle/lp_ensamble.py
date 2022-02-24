@@ -86,103 +86,114 @@ class LPEnsamble(object):
         manager = [at]
         if features is None:
             features = self.representation.transform(manager)
-        if forces:
-            e_model, f_model = self.predict_from_features(features)
-        else:
-            e_model = self.predict_energy_from_features(features)
-        if stress:
-            s_model = self.predict_stress_from_features(features)
-
+        
+        prediction = self.predict_from_features(features, forces, stress)
         if self.baseline_calculator is not None:
             at.set_calculator(self.baseline_calculator)
-            e_model += at.get_potential_energy()
+            prediction['energy'] += at.get_potential_energy()
             if forces:
-                f_model += at.get_forces()
+                prediction['forces'] += at.get_forces()
             if stress:
-                s_model += at.get_stresses()
+                prediction['stress'] += at.get_stresses()
+        return prediction
 
-        if forces and stress:
-            return e_model, f_model, s_model
-        elif forces:
-            return e_model, f_model
-        else:
-            return e_model
-
-    def predict_from_features(self, features):
+    def predict_from_features(self, features, forces=False, stress=False):
+        prediction = {}
         nat = features.get_nb_atoms_per_frame()
-        e_pred = np.zeros(len(features.X))
-        f_pred = np.zeros(features.dX_dr.shape[:2])
+        prediction['energy'] = np.zeros(len(features.X))
+        if forces:
+            prediction['forces'] = np.zeros(features.dX_dr.shape[:2])
+        if stress:
+            prediction['stress'] = np.zeros((len(features.X), 6))
         nat_counter = 0
         for i in np.arange(len(features)):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
-            weights, der_weighs = self.clustering.get_models_weight(norm_feat, feat.dX_dr, True)
-            # First part of the force component, easy
-            f_1 = np.einsum("mcd, sd, s -> mc",
-                            feat.dX_dr, self.alphas, weights)
-            
-            # Descriptor multiplied by the derivative of the weights, not sure about the sign
-            f_2 = np.einsum("d, sd, msc -> mc", norm_feat, self.alphas, der_weighs) 
+            weights = self.clustering.get_models_weight(norm_feat, feat.dX_dr, 
+                                                        feat.dX_ds, forces=forces, stress=stress)
 
-            f_pred[nat_counter:nat_counter+nat[i]] = f_1 - f_2
+            if forces:
+                # First part of the force component, easy
+                f_1 = np.einsum("mcd, sd, s -> mc",
+                                feat.dX_dr, self.alphas, weights['energy'])
+                
+                # Descriptor multiplied by the derivative of the weights, not sure about the sign
+                f_2 = np.einsum("d, sd, msc -> mc", norm_feat, self.alphas, weights['forces']) 
+
+                prediction['forces'][nat_counter:nat_counter+nat[i]] = f_1 - f_2
+
+            if stress:
+                # First part of the force component, easy
+                s_1 = np.einsum("cd, sd, s -> c",
+                                feat.dX_ds[0], self.alphas, weights['energy'])
+                
+                # Descriptor multiplied by the derivative of the weights, not sure about the sign
+                s_2 = np.einsum("d, sd, sc -> c", norm_feat, self.alphas, weights['stress']) 
+
+                prediction['stress'][i] = s_1 - s_2
+
             nat_counter += nat[i]
 
-            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights) + self.mean_peratom_energy*nat[i]
+            prediction['energy'][i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, 
+                                                 weights['energy']) + self.mean_peratom_energy*nat[i]
 
-        return e_pred, f_pred
+        # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
+        if prediction['energy'].shape[0] == 1 and stress:
+            prediction['stress'] = prediction['stress'][0]
+        return prediction
 
-    def predict_energy_from_features(self, features):
-        nat = features.get_nb_atoms_per_frame()
-        e_pred = np.zeros(len(features.X))
-        for i in range(len(features.X)):
-            feat = features.get_subset([i])
-            weights = self.clustering.get_models_weight(feat.X[0] / nat[i, None])
-            e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights) + self.mean_peratom_energy*nat[i]
-        return e_pred
+    # def predict_energy_from_features(self, features):
+    #     nat = features.get_nb_atoms_per_frame()
+    #     e_pred = np.zeros(len(features.X))
+    #     for i in range(len(features.X)):
+    #         feat = features.get_subset([i])
+    #         weights = self.clustering.get_models_weight(feat.X[0] / nat[i, None])
+    #         e_pred[i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, weights['energy']) + self.mean_peratom_energy*nat[i]
+    #     return e_pred
 
-    def predict_forces_from_features(self, features):
-        nat = features.get_nb_atoms_per_frame()
-        f_pred = np.zeros(features.dX_dr.shape[:2])
-        nat_counter = 0
-        for i in np.arange(len(features)):
-            feat = features.get_subset([i])
-            norm_feat = feat.X[0] / nat[i]
-            weights, der_weighs = self.clustering.get_models_weight(norm_feat, feat.dX_dr, True)            
-            # First part of the force component, easy
-            f_1 = np.einsum("mcd, sd, s -> mc",
-                            feat.dX_dr, self.alphas, weights)
+    # def predict_forces_from_features(self, features):
+    #     nat = features.get_nb_atoms_per_frame()
+    #     f_pred = np.zeros(features.dX_dr.shape[:2])
+    #     nat_counter = 0
+    #     for i in np.arange(len(features)):
+    #         feat = features.get_subset([i])
+    #         norm_feat = feat.X[0] / nat[i]
+    #         weights = self.clustering.get_models_weight(norm_feat, feat.dX_dr, forces=True)            
+    #         # First part of the force component, easy
+    #         f_1 = np.einsum("mcd, sd, s -> mc",
+    #                         feat.dX_dr, self.alphas, weights['energy'])
             
-            # Descriptor multiplied by the derivative of the weights, not sure about the sign
-            f_2 = np.einsum("d, sd, msc -> mc", norm_feat, self.alphas, der_weighs) 
+    #         # Descriptor multiplied by the derivative of the weights, not sure about the sign
+    #         f_2 = np.einsum("d, sd, msc -> mc", norm_feat, self.alphas, weights['forces']) 
 
-            f_pred[nat_counter:nat_counter+nat[i]] = f_1 - f_2
-            nat_counter += nat[i]
+    #         f_pred[nat_counter:nat_counter+nat[i]] = f_1 - f_2
+    #         nat_counter += nat[i]
 
-        return f_pred
+    #     return f_pred
 
-    def predict_stress_from_features(self, features):
-        nat = features.get_nb_atoms_per_frame()
-        neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
-                                    k=self.n_neighbours)
-        s_pred = np.zeros((len(features), 6))
-        for i in np.arange(len(features)):
-            feat = features.get_subset([i])
-            s_pred[i] = self.predict_stress_single(feat, neigh_dist[i], neigh_idx[i])
-        return s_pred
+    # def predict_stress_from_features(self, features):
+    #     nat = features.get_nb_atoms_per_frame()
+    #     neigh_dist, neigh_idx = self.tree.query(features.X / nat[:, None],
+    #                                 k=self.n_neighbours)
+    #     s_pred = np.zeros((len(features), 6))
+    #     for i in np.arange(len(features)):
+    #         feat = features.get_subset([i])
+    #         s_pred[i] = self.predict_stress_single(feat, neigh_dist[i], neigh_idx[i])
+    #     return s_pred
 
-    def predict_stress_single_from_features(self, feat, neigh_dist, neigh_idx):
-        clusters = self.train_labels[neigh_idx]
-        # If all neighbours are in the same cluster, easy
-        if len(np.unique(clusters)) == 1:
-            s_ = self.potentials[clusters[0]].predict_stress(feat)
-        else:
-            # TODO
-            alphas = np.array([self.potentials[i].weights
-                                for i in clusters])
-            weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
-            s_ = -np.einsum("cd, ld, l -> c", feat.dX_ds[0],
-                            alphas, weights)
-        return s_
+    # def predict_stress_single_from_features(self, feat, neigh_dist, neigh_idx):
+    #     clusters = self.train_labels[neigh_idx]
+    #     # If all neighbours are in the same cluster, easy
+    #     if len(np.unique(clusters)) == 1:
+    #         s_ = self.potentials[clusters[0]].predict_stress(feat)
+    #     else:
+    #         # TODO
+    #         alphas = np.array([self.potentials[i].weights
+    #                             for i in clusters])
+    #         weights = np.exp(-neigh_dist)/np.sum(np.exp(-neigh_dist))
+    #         s_ = -np.einsum("cd, ld, l -> c", feat.dX_ds[0],
+    #                         alphas, weights)
+    #     return s_
 
 
 # Old stuff    

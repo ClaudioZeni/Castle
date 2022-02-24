@@ -34,18 +34,15 @@ class ASEMLCalculator(Calculator):
         properties=["energy", "forces", "stress"],
         system_changes=all_changes,
     ):
-        
-        if "forces" and "stress" in properties:
-            energy, forces, stress = self.model.predict(atoms, forces=True, stress=True)
-            self.results["forces"] = forces
-            self.results["stress"] = stress
-        elif "forces" in properties:
-            energy, forces = self.model.predict(atoms, forces=True)
-            self.results["forces"] = forces
+        if "forces" in properties:
+            forces=True
         else:
-            energy = self.model.predict(atoms, forces=False)
+            forces=False
+        if "stress" in properties:
+            stress=True
+        else:
+            stress=False
 
-        self.results["energy"] = energy
-        self.results["free_energy"] = energy
+        self.results = self.model.predict(atoms, forces, stress)
 
 

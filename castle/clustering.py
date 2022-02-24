@@ -110,14 +110,14 @@ class Clustering(object):
         self.baseline_prob = np.sort(np.ravel(proba))[
             int(self.baseline_percentile*proba.shape[0]*proba.shape[1])]
 
-    def get_models_weight(self, X_avg, dX_dr=None, compute_der=False):
+    def get_models_weight(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
-            return self.get_models_weight_gmm(X_avg, dX_dr, compute_der)
+            return self.get_models_weight_gmm(X_avg, dX_dr, dX_ds, forces, stress)
 
         elif self.clustering_type == 'kmeans':
-            return self.get_models_weight_kmeans(X_avg, dX_dr, compute_der)
+            return self.get_models_weight_kmeans(X_avg, dX_dr, dX_ds, forces, stress)
 
-    def get_models_weight_kmeans(self, X_avg, dX_dr=None, compute_der=False):
+    def get_models_weight_kmeans(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
             of models for a single structure.
 
@@ -137,6 +137,8 @@ class Clustering(object):
         softmax_der: (s, s)
         proba_der: (m, s, c)
         """
+
+        weights = {}
         # Distance from center
         diff = X_avg[None, :] - self.centers[:, :]
         # Compute exponential disrance
@@ -146,21 +148,26 @@ class Clustering(object):
         proba = np.nan_to_num(proba, copy=False, nan=0)
         if not sum(proba) == 0:
             proba_sum = np.sum(proba) + self.baseline_prob
-            proba_norm = proba/proba_sum
-        if compute_der:
-            if not sum(proba) == 0:
-                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/self.precisions/diff)
+            weights['energy'] = proba/proba_sum
+
+        if forces or stress:
                 sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
-                proba_der = np.einsum('smc, ts -> msc', single_proba_der, sum_der)
-
-            # To avoid absurd numbers if all clusters have probability 0 or nan
+        if forces:
+            if not sum(proba) == 0:
+                single_proba_force = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/self.precisions/diff)
+                weights['forces'] = np.einsum('smc, ts -> msc', single_proba_force, sum_der)
             else:
-                proba_der = np.zeros((dX_dr.shape[0], len(proba), 3))
-            return proba_norm, proba_der
-        else:
-            return proba_norm
+                weights['forces'] = np.zeros((dX_dr.shape[0], len(proba), 3))
+        if stress:
+            if not sum(proba) == 0:
+                single_proba_stress = np.einsum('s, cd, sd -> sc', proba, dX_ds[0], -4/self.precisions/diff)
+                weights['stress'] = np.einsum('sc, ts -> sc', single_proba_stress, sum_der)
+            else:
+                weights['stress'] = np.zeros((len(proba), 6))
 
-    def get_models_weight_gmm(self, X_avg, dX_dr=None, compute_der=False):
+        return weights
+
+    def get_models_weight_gmm(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
             of models for a single structure.
 
@@ -180,6 +187,8 @@ class Clustering(object):
         softmax_der: (s, s)
         proba_der: (m, s, c)
         """
+
+        weights = {}
         # Distance from center
         diff = X_avg[None, :] - self.centers[:, :]
         # Compute exponential disrance
@@ -194,18 +203,25 @@ class Clustering(object):
         proba = np.nan_to_num(proba, copy=False, nan=0)
         if not sum(proba) == 0:
             proba_sum = np.sum(proba) + self.baseline_prob
-            proba = proba/proba_sum
+            weights['energy'] = proba/proba_sum
 
-        if compute_der:
+        if forces or stress:
+            der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
+            softmax_der = - proba[:, None] * proba[None, :] + np.diag(proba)
+
+        if forces:
             if not sum(proba) == 0:
-                der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
-                single_proba_der = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)
-                softmax_der = - proba[:, None] * proba[None, :] + np.diag(proba)
-                proba_der = np.einsum('smc, st -> msc', single_proba_der, softmax_der)
-
+                single_proba_forces = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)
+                weights['forces'] = np.einsum('smc, st -> msc', single_proba_forces, softmax_der)
             # To avoid absurd numbers if all clusters have probability 0 or nan
             else:
-                proba_der = np.zeros((dX_dr.shape[0], len(proba), 3))
-            return proba, proba_der
-        else:
-            return proba
+                weights['forces'] = np.zeros((dX_dr.shape[0], len(proba), 3))
+        if stress:
+            if not sum(proba) == 0:
+                single_proba_stress = np.einsum('s, cd, sd -> sc', proba, dX_ds[0], der_diff)
+                weights['stress'] = np.einsum('sc, st -> sc', single_proba_stress, softmax_der)
+            # To avoid absurd numbers if all clusters have probability 0 or nan
+            else:
+                weights['stress'] = np.zeros((len(proba), 6))
+
+        return weights

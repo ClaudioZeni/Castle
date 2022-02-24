@@ -58,39 +58,23 @@ class LinearPotential(object):
         self.weights = weights
         self.mean_peratom_energy = mean_peratom_energy
 
-    def predict(self, atoms, forces=True, stress=False):
+    def predict(self, atoms, forces=True, stress=False, features=None):
         at = atoms.copy()
         at.wrap(eps=1e-11)
-        features = self.representation.transform([at])
-        e_model = self.predict_energy_from_features(features)
+        if features is None:
+            features = self.representation.transform([at])
+        return self.predict_from_features(features, forces, stress)
+
+    def predict_from_features(self, features, forces=False, stress=False):
+        prediction = {}
+        prediction['energy'] = np.dot(features.X, self.weights) + features.get_nb_atoms_per_frame() * self.mean_peratom_energy
         if forces:
-            f_model = self.predict_forces_from_features(features)
+            prediction['forces'] = np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
         if stress:
-            s_model = self.predict_stress_from_features(features)
+            prediction['stress'] = np.einsum("ncd, d -> nc", features.dX_ds, self.weights)
 
-        if forces and stress:
-            return e_model, f_model, s_model
-        elif forces:
-            return e_model, f_model
-        else:
-            return e_model
-
-    def predict_energy_from_features(self, features):
-        nat = features.get_nb_atoms_per_frame()
-        e = np.dot(features.X, self.weights) + nat * self.mean_peratom_energy
-        return e
-
-    def predict_forces_from_features(self, features):
-        f = np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
-        return f
-
-    def predict_stress_from_features(self, features):
-        # TODO CHECK IF CORRECT
-        v = -np.einsum("mcd, d -> mc", features.dX_ds, self.weights)
-        return v
-
-    def predict_from_features(self, features):
-        e = self.predict_energy_from_features(features)
-        f = self.predict_forces_from_features(features)
-        return e, f
+        # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
+        if prediction['energy'].shape[0] == 1 and stress:
+            prediction['stress'] = prediction['stress'][0]
+        return prediction
 
