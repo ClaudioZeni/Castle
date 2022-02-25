@@ -151,6 +151,7 @@ class Clustering(object):
             weights['energy'] = proba/proba_sum
 
         if forces or stress:
+            if not sum(proba) == 0:
                 sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
         if forces:
             if not sum(proba) == 0:
