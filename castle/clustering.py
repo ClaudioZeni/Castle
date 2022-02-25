@@ -150,7 +150,7 @@ class Clustering(object):
             proba_sum = np.sum(proba) + self.baseline_prob
             weights['energy'] = proba/proba_sum
         else:
-            weights['energu'] = np.zeros(len(proba))
+            weights['energy'] = np.zeros(len(proba))
         if forces or stress:
             if not sum(proba) == 0:
                 sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
