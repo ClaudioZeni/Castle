@@ -32,3 +32,7 @@ to:
 Then, install the julia Python package with:
 
 	pip install julia
+	
+Finally, install the python package by going to /Castle and running:
+
+	pip install .
