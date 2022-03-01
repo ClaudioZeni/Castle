@@ -96,19 +96,19 @@ class Clustering(object):
 
         if self.clustering_type == 'kmeans':
             # Compute exponential disrance
-            proba = self.weights[None, :]**0.5/np.sum((self.precisions[None, :, :]*diff**4), axis = 2)
+            weights = self.weights[None, :]**0.5/np.sum((self.precisions[None, :, :]*diff**4), axis = 2)
             # Normalize to get sums up to 1
 
         elif self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
             # Compute exponential disrance
-            proba = np.exp(-0.5*(np.einsum('nsf, sdf, nsd -> ns', diff, self.precisions, diff)))
+            weights = np.exp(-0.5*(np.einsum('nsf, sdf, nsd -> ns', diff, self.precisions, diff)))
             # Normalize for determinant of covariance and number of dimensions
-            proba = proba/(((2*np.pi)**X.shape[1]*self.cov_dets[None, :])**0.5)
+            weights = weights/(((2*np.pi)**X.shape[1]*self.cov_dets[None, :])**0.5)
             # Multiply by GMM weight
-            proba = proba * self.weights[None, :]
-        proba = np.nan_to_num(proba, copy=False, nan=0)
-        self.baseline_prob = np.sort(np.ravel(proba))[
-            int(self.baseline_percentile*proba.shape[0]*proba.shape[1])]
+            weights = weights * self.weights[None, :]
+        weights = np.nan_to_num(weights, copy=False, nan=0)
+        self.baseline_prob = np.sort(np.ravel(weights))[
+            int(self.baseline_percentile*weights.shape[0]*weights.shape[1])]
 
     def get_models_weight(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':

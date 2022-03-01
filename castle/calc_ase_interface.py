@@ -1,6 +1,4 @@
-from asyncio.format_helpers import _format_callback_source
 from ase.calculators.calculator import Calculator, all_changes
-from copy import deepcopy
 
 
 class ASEMLCalculator(Calculator):
