@@ -26,6 +26,9 @@ Then, install the julia Python package with:
 
 	pip install julia
 
+Finally, install Castle with (from inside the repository where setup.py is):
+
+	pip install .
 
 # References
 [1] Drautz, R. (2019). Atomic cluster expansion for accurate and transferable interatomic potentials. Physical Review B, 99(1), 014104.
