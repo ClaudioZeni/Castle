@@ -1,5 +1,9 @@
 # Castle
-Ensamble learning force fields within the PACE framework
+
+Ensemble of ridge regression force fields in Python.
+
+This repository is based on the ACE descriptor [1] as descibed in [2] and implemented in [3]
+
 
 # Instructions
 
@@ -18,17 +22,14 @@ run the following:
 
 Download ACE from https://github.com/ACEsuit/ACE.jl, branch dev-v0.8.x.
 
-In the ACE folder, change lines 53 and 54 in sphericalharmonics.jl from :
-
-	cosθ = R[3] / r
-	sinθ = sqrt(R[1]^2+R[2]^2) / r
-	
-to:
-
-	θ = atan(sqrt(R[1]^2+R[2]^2+ 1e-8), R[3])
-	sinθ, cosθ = sincos(θ)
-
-
 Then, install the julia Python package with:
 
 	pip install julia
+
+
+# References
+[1] Drautz, R. (2019). Atomic cluster expansion for accurate and transferable interatomic potentials. Physical Review B, 99(1), 014104.
+
+[2] Dusson, G., Bachmayr, M., Csanyi, G., Drautz, R., Etter, S., van der Oord, C., & Ortner, C. (2022). Atomic cluster expansion: Completeness, efficiency and stability. Journal of Computational Physics, 110946.
+
+[3] ACE.jl https://github.com/ACEsuit/ACE.jl
