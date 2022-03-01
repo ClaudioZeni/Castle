@@ -20,7 +20,7 @@ run the following:
 	add JuLIP, IPFitting
 	pin JuLIP@v0.10; pin IPFitting@v0.5
 
-Download ACE from https://github.com/ACEsuit/ACE.jl, branch dev-v0.8.x.
+Download ACE from https://github.com/ACEsuit/ACE.jl/tree/dev-v0.8.x, branch dev-v0.8.x.
 
 Then, install the julia Python package with:
 
