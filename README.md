@@ -15,7 +15,7 @@ press ] to go to package manager
 
 run the following:
 
-
+	registry add https://github.com/JuliaRegistries/General
 	registry add https://github.com/JuliaMolSim/MolSim.git
 	add JuLIP, IPFitting, ACE, Neighbourlists, Einsum
 	pin JuLIP@v0.10; pin IPFitting@v0.5.0; pin ACE@0.8
