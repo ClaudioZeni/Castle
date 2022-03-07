@@ -1,6 +1,6 @@
 # Castle
 
-Ensemble of ridge regression force fields in Python.
+Ridge regression force fields in Python.
 
 This repository is based on the ACE descriptor [1] as descibed in [2] and implemented in [3]
 
