@@ -40,7 +40,8 @@ class LPEnsamble(object):
         self.noise = noise
         self.representation = features.representation
         nat = features.get_nb_atoms_per_frame()
-        self.clustering.fit(features.X / nat[:, None], e / nat, self.n_clusters)
+        nsp = len(self.representation.species)
+        self.clustering.fit(features.X[:, :-nsp] / nat[:, None], e / nat, self.n_clusters)
 
         if self.e_b is not None:
             e -= self.e_b
@@ -98,6 +99,7 @@ class LPEnsamble(object):
     def predict_from_features(self, features, forces=False, stress=False):
         prediction = {}
         nat = features.get_nb_atoms_per_frame()
+        nsp = len(self.representation.species)
         prediction['energy'] = np.zeros(len(features.X))
         if forces:
             prediction['forces'] = np.zeros(features.dX_dr.shape[:2])
@@ -107,8 +109,8 @@ class LPEnsamble(object):
         for i in np.arange(len(features)):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
-            weights = self.clustering.get_models_weight(norm_feat, feat.dX_dr, 
-                                                        feat.dX_ds, forces=forces, stress=stress)
+            weights = self.clustering.get_models_weight(norm_feat[..., :-nsp], feat.dX_dr[..., :-nsp], 
+                                                        feat.dX_ds[..., :-nsp], forces=forces, stress=stress)
 
             if forces:
                 # First part of the force component, easy
@@ -121,7 +123,7 @@ class LPEnsamble(object):
                 prediction['forces'][nat_counter:nat_counter+nat[i]] = f_1 - f_2
 
             if stress:
-                # First part of the force component, easy
+                # First part of the force component, easy   
                 s_1 = np.einsum("cd, sd, s -> c",
                                 feat.dX_ds[0], self.alphas, weights['energy'])
                 

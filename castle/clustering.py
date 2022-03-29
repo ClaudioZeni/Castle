@@ -206,7 +206,8 @@ class Clustering(object):
         if not sum(proba) == 0:
             proba_sum = np.sum(proba) + self.baseline_prob
             weights['energy'] = proba/proba_sum
-
+        else:
+            weights['energy'] = np.zeros(len(proba))
         if forces or stress:
             der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
             softmax_der = - proba[:, None] * proba[None, :] + np.diag(proba)

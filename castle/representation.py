@@ -11,15 +11,14 @@ from .features import GlobalFeatures, LocalFeatures
 
 class AceGlobalRepresentation(object):
     def __init__(self, N, maxdeg, rcut, species, r0=1.0,
-                 reg=1e-8, rin=1.0, constants=False,
+                 rin=1.0, constants=False,
                  energy_name="dft_energy", force_name="dft_force",
                  virial_name="dft_virial"):
         self.N = N
         self.maxdeg = maxdeg
-        self.rcut = rcut
+        self.rcut = float(rcut)
         self.species = species
         self.r0 = r0
-        self.reg = reg
         self.rin = rin
         self.constants = constants
         self.energy_name = energy_name
@@ -29,23 +28,18 @@ class AceGlobalRepresentation(object):
     def transform(self, frames, compute_derivative=True):
         basis, self.n_feat = get_basis(
             self.N, self.maxdeg, self.rcut, self.species,
-            self.r0, self.reg, self.rin, self.constants)
+            self.r0,  self.rin, self.constants)
+
+        self.n_feat += len(self.species)
         if not isinstance(frames, list):
             frames = [frames]
         n_atoms = 0
         n_frames = len(frames)
-        species = []
         strides = [0]
         for frame in frames:
             n_atoms += len(frame)
             strides.append(len(frame))
-            if isinstance(frame, ase.Atoms):
-                species.extend(frame.get_atomic_numbers())
-            else:
-                for at in frame:
-                    species.append(at.atom_type)
 
-        species = np.unique(species)
         strides = np.cumsum(strides)
         X = np.zeros((n_frames, self.n_feat))
         if compute_derivative:
@@ -66,33 +60,32 @@ class AceGlobalRepresentation(object):
                     basis, frame)
 
         if compute_derivative:
-            return GlobalFeatures(self, X, dX_dr, dX_ds, strides, species)
+            return GlobalFeatures(self, X, dX_dr, dX_ds, strides, self.species)
         else:
-            return GlobalFeatures(self, X, None, None, strides, species)
+            return GlobalFeatures(self, X, None, None, strides, self.species)
 
     def _get_global_representation_single_species(self, basis, frame):
-        X, dX_dr_global, dX_ds_global = descriptors_from_frame(basis, frame,
+        X, dX_dr_global, dX_ds_global = descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
         return X, dX_dr_global, dX_ds_global
 
     def _get_global_representation_single_species_no_forces(self, basis, frame):
-        X = descriptors_from_frame_no_forces(basis, frame, self.energy_name)
+        X = descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X
 
 
 class AceLocalRepresentation(object):
     def __init__(self, N, maxdeg, rcut, species, r0=1.0,
-                 reg=1e-8, rin=1.0, constants=False,
+                 rin=1.0, constants=False,
                  energy_name="dft_energy", force_name="dft_force",
                  virial_name="dft_virial"):
         self.N = N
         self.maxdeg = maxdeg
-        self.rcut = rcut
+        self.rcut = float(rcut)
         self.species = species
         self.r0 = r0
-        self.reg = reg
         self.rin = rin
         self.constants = constants
         self.energy_name = energy_name
@@ -102,23 +95,18 @@ class AceLocalRepresentation(object):
     def transform(self, frames, compute_derivative=True):
         basis, self.n_feat = get_basis(
             self.N, self.maxdeg, self.rcut, self.species,
-            self.r0, self.reg, self.rin, self.constants)
+            self.r0,self.rin, self.constants)
+
+        self.n_feat += len(self.species)
+
         if not isinstance(frames, list):
             frames = [frames]
         n_atoms = 0
-        n_frames = len(frames)
-        species = []
         strides = [0]
         for frame in frames:
             n_atoms += len(frame)
             strides.append(len(frame))
-            if isinstance(frame, ase.Atoms):
-                species.extend(frame.get_atomic_numbers())
-            else:
-                for at in frame:
-                    species.append(at.atom_type)
 
-        species = np.unique(species)
         strides = np.cumsum(strides)
         X = []
         dX_dr = []
@@ -129,7 +117,6 @@ class AceLocalRepresentation(object):
         for i_frame in range(len(frames)):
             frame = frames[i_frame]
             if compute_derivative:
-                st, nd = strides[i_frame], strides[i_frame + 1]
                 X_, dX_dr_, dX_ds_ =  self._get_local_representation_single_species(basis, frame)
                 dX_ds_ /= frame.get_volume()
                 X.append(X_)
@@ -140,25 +127,19 @@ class AceLocalRepresentation(object):
                     basis, frame))
 
         if compute_derivative:
-            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, species)
+            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, self.species)
         else:
-            return LocalFeatures(self, np.array(X), None, None, strides, species)
+            return LocalFeatures(self, np.array(X), None, None, strides, self.species)
 
     def transform_single(self, frame, compute_derivative=True):
         basis, self.n_feat = get_basis(
             self.N, self.maxdeg, self.rcut, self.species,
-            self.r0, self.reg, self.rin, self.constants)
+            self.r0, self.rin, self.constants)
 
-        species = []
+        self.n_feat += len(self.species)
+
         strides = [0]
         strides.append(len(frame))
-        if isinstance(frame, ase.Atoms):
-            species.extend(frame.get_atomic_numbers())
-        else:
-            for at in frame:
-                species.append(at.atom_type)
-
-        species = np.unique(species)
         strides = np.cumsum(strides)
 
         if compute_derivative:
@@ -172,19 +153,19 @@ class AceLocalRepresentation(object):
                 basis, frame)])
 
         if compute_derivative:
-            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, species)
+            return LocalFeatures(self, np.array(X), np.array(dX_dr), np.array(dX_ds), strides, self.species)
         else:
-            return LocalFeatures(self, np.array(X), None, None, strides, species)
+            return LocalFeatures(self, np.array(X), None, None, strides, self.species)
     
     def _get_local_representation_single_species(self, basis, frame):
-        X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame,
+        X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
         return X, dX_dr_local, dX_ds_local
         
     def _get_local_representation_single_species_no_forces(self, basis, frame):
-        X_local = local_descriptors_from_frame_no_forces(basis, frame, self.energy_name)
+        X_local = local_descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X_local
 
 

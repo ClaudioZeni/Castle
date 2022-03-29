@@ -145,7 +145,7 @@ def get_score(y1, y2):
 
 
 def extract_features(folder, train_filename, validation_filename=None, 
-                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, reg = 1e-8, species = None,
+                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, species = None,
                     force_name = None, energy_name = None):
     
     if validation_filename is None:
@@ -159,8 +159,7 @@ def extract_features(folder, train_filename, validation_filename=None,
         species = list(set(tr_frames[0].get_atomic_numbers()))
     if type(species)==str:
         species = [atomic_numbers[species]]
-
-    representation = AceGlobalRepresentation(N, maxdeg, rcut, species, r0, reg, 
+    representation = AceGlobalRepresentation(N, maxdeg, rcut, species, r0,
                                              energy_name=energy_name, force_name=force_name)
 
     tr_features = representation.transform(tr_frames)
@@ -176,7 +175,7 @@ def extract_features(folder, train_filename, validation_filename=None,
 
 
 def extract_local_features(folder, train_filename, validation_filename=None, 
-                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, reg = 1e-8, species = None,
+                    N=8, maxdeg=10, rcut=4.0, r0 = 1.0, species = None,
                     force_name = None, energy_name = None, compute_derivative=False):
     
     if validation_filename is None:
@@ -189,7 +188,7 @@ def extract_local_features(folder, train_filename, validation_filename=None,
     if species is None:
         species = list(set(tr_frames[0].get_atomic_numbers()))
     if type(species)==str:
-        species = atomic_numbers[species]
+        species = [atomic_numbers[species]]
     if type(species) == list:
         species_ = []
         for i in species:
@@ -200,7 +199,7 @@ def extract_local_features(folder, train_filename, validation_filename=None,
         species = list(species_)
         del species_
 
-    representation = AceLocalRepresentation(N, maxdeg, rcut, species, r0, reg, 
+    representation = AceLocalRepresentation(N, maxdeg, rcut, species, r0,
                                              energy_name=energy_name, force_name=force_name)
 
     tr_features = representation.transform(tr_frames, compute_derivative)
