@@ -1,13 +1,13 @@
 # Castle
 
-Ensemble of ridge regression force fields in Python.
+Ridge regression force fields in Python.
 
 This repository is based on the ACE descriptor [1] as descibed in [2] and implemented in [3]
 
 
 # Instructions
 
-Install julia-1.5.3
+Install julia-1.5.4
 
 go in julia (julia in terminal)
 
@@ -15,12 +15,10 @@ press ] to go to package manager
 
 run the following:
 
-
+	registry add https://github.com/JuliaRegistries/General
 	registry add https://github.com/JuliaMolSim/MolSim.git
-	add JuLIP, IPFitting
-	pin JuLIP@v0.10; pin IPFitting@v0.5
-
-Download ACE from https://github.com/ACEsuit/ACE.jl, branch dev-v0.8.x.
+	add JuLIP, IPFitting, ACE, NeighbourLists, Einsum
+	pin JuLIP@v0.10; pin IPFitting@v0.5.0; pin ACE@0.8
 
 Then, install the julia Python package with:
 
