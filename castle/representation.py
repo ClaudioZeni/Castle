@@ -7,6 +7,7 @@ from .ace_interface import (descriptors_from_frame,
                             local_descriptors_from_frame_no_forces,
                             get_basis)
 from .features import GlobalFeatures, LocalFeatures
+from .utils import progressbar
 
 
 class AceGlobalRepresentation(object):
@@ -47,7 +48,8 @@ class AceGlobalRepresentation(object):
         if compute_derivative:
             dX_dr = np.zeros((n_atoms, 3, self.n_feat))
             dX_ds = np.zeros((n_frames, 6, self.n_feat))
-        for i_frame in range(len(frames)):
+        print("Computing Representations")
+        for i_frame in progressbar(range(len(frames))):
             frame = frames[i_frame]
             if compute_derivative:
                 st, nd = strides[i_frame], strides[i_frame + 1]

@@ -2,7 +2,6 @@ import numpy as np
 from .linear_potential import LinearPotential
 from .clustering import Clustering
 
-
 class LPEnsamble(object):
     def __init__(self, representation, clustering_type='kmeans', n_clusters='auto',
                  baseline_calculator=None, baseline_percentile=0):
@@ -19,7 +18,7 @@ class LPEnsamble(object):
         self.e_b = None
         self.f_b = None
 
-    def fit(self, traj, e_noise=1e-6, f_noise=1e-8, features=None):
+    def fit(self, traj, e_noise=1e-8, f_noise=1e-8, features=None, noise_optimization=False):
         if self.baseline_calculator:
             self.compute_baseline_predictions(traj)
 
@@ -33,9 +32,9 @@ class LPEnsamble(object):
         if features is None:
             features = self.representation.transform(traj)
         features = self.representation.transform(traj)
-        self.fit_from_features(features, e, f, e_noise, f_noise)
+        self.fit_from_features(features, e, f, e_noise, f_noise, noise_optimization)
 
-    def fit_from_features(self, features, e, f, e_noise=1e-6, f_noise=1e-8):
+    def fit_from_features(self, features, e, f, e_noise=1e-8, f_noise=1e-8, noise_optimization=False):
         self.e_noise = e_noise
         self.f_noise = f_noise
         self.representation = features.representation
@@ -56,7 +55,7 @@ class LPEnsamble(object):
             for i in np.arange(len(nat)):
                 fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
             pot = LinearPotential(self.representation)
-            pot.fit_from_features(features_, e[mask], f[fmask], self.e_noise, self.f_noise)
+            pot.fit_from_features(features_, e[mask], f[fmask], self.e_noise, self.f_noise, noise_optimization)
 
             potentials[lab] = pot
 
@@ -102,14 +101,11 @@ class LPEnsamble(object):
         if stress:
             prediction['stress'] = np.zeros((len(features.X), 6))
         nat_counter = 0
-        self.energy_weights = []
         for i in np.arange(len(features)):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
             weights = self.clustering.get_models_weight(norm_feat[..., :-nsp], feat.dX_dr[..., :-nsp], 
                                                         feat.dX_ds[..., :-nsp], forces=forces, stress=stress)
-            self.energy_weights.append(weights['energy'])
-
             if forces:
                 # First part of the force component, easy
                 f_1 = np.einsum("mcd, sd, s -> mc",
