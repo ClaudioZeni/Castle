@@ -17,6 +17,8 @@ class AceGlobalRepresentation(object):
         self.N = N
         self.maxdeg = maxdeg
         self.rcut = float(rcut)
+        if species is int:
+            species = [species]
         self.species = species
         self.r0 = r0
         self.rin = rin
@@ -84,6 +86,8 @@ class AceLocalRepresentation(object):
         self.N = N
         self.maxdeg = maxdeg
         self.rcut = float(rcut)
+        if species is int:
+            species = [species]
         self.species = species
         self.r0 = r0
         self.rin = rin

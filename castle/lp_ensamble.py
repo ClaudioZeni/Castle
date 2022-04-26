@@ -106,11 +106,13 @@ class LPEnsamble(object):
         if stress:
             prediction['stress'] = np.zeros((len(features.X), 6))
         nat_counter = 0
+        self.energy_weights = []
         for i in np.arange(len(features)):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
             weights = self.clustering.get_models_weight(norm_feat[..., :-nsp], feat.dX_dr[..., :-nsp], 
                                                         feat.dX_ds[..., :-nsp], forces=forces, stress=stress)
+            self.energy_weights.append(weights['energy'])
 
             if forces:
                 # First part of the force component, easy

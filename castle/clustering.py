@@ -1,6 +1,6 @@
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 import numpy as np
 
 
@@ -8,6 +8,8 @@ class Clustering(object):
     def __init__(self, clustering_type, baseline_percentile=0):
         self.clustering_type = clustering_type 
         self.baseline_percentile = baseline_percentile
+        if not 0<= self.baseline_percentile < 1:
+            raise ValueError("Baseline_percentile must be in [0, 1[")
      
     def optimize_n_clusters(self, X, model):
         S = []
@@ -153,7 +155,10 @@ class Clustering(object):
             weights['energy'] = np.zeros(len(proba))
         if forces or stress:
             if not sum(proba) == 0:
-                sum_der = - proba[:, None] / proba_sum**2 + np.eye(len(proba)) / proba_sum
+                # TODO this is a very strange hotfix for the derivative when the baseline is nonzero.
+                # This is NOT correct but it kinda works
+                sum_der = - proba[:, None] / np.sum(proba)**2 + np.eye(len(proba)) / np.sum(proba)
+                sum_der *= (1-self.baseline_prob/proba_sum)
         if forces:
             if not sum(proba) == 0:
                 single_proba_force = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/self.precisions/diff)
@@ -211,7 +216,6 @@ class Clustering(object):
         if forces or stress:
             der_diff = np.einsum('sf, sdf -> sd', diff, self.precisions)
             softmax_der = - proba[:, None] * proba[None, :] + np.diag(proba)
-
         if forces:
             if not sum(proba) == 0:
                 single_proba_forces = np.einsum('s, mcd, sd -> smc', proba, dX_dr, der_diff)

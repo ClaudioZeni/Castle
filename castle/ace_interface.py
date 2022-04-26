@@ -77,7 +77,7 @@ def local_descriptors_from_frame(basis, frame, species,
                            virial_name="virial"):
     at = frame_to_julia_at(frame, energy_name,
                            force_name, virial_name)
-    X = Main.environment_descriptor(basis, at.at)
+    X = Main.environment_descriptor(basis, at.at)   
     dX_dr, dX_ds = Main.environment_d_descriptor(basis, at.at)
     dX_dr = np.array(dX_dr)
     X, dX_dr = add_onebody_local_term(frame, species, X, dX_dr)
