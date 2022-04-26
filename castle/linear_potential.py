@@ -71,7 +71,7 @@ class LinearPotential(object):
             prediction['stress'] = prediction['stress'][0]
         return prediction
 
-    def noise_optimization(self, features, e, f, bounds = [1e-10, 1e0], maxiter=10, kfold=5):
+    def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-1], maxiter=5, kfold=5):
         noises = np.array([bounds, bounds])
         print("Noise Optimization")
         for i in progressbar(np.arange(maxiter)):
@@ -87,6 +87,7 @@ class LinearPotential(object):
 
         self.e_noise = logmean(noises[0, 0], noises[0, 1])
         self.f_noise = logmean(noises[1, 0], noises[1, 1])
+        print(f"Energy noise: {self.e_noise}, Force noise: {self.f_noise}")
 
 
 def logmean(a, b):
