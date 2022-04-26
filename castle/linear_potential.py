@@ -5,36 +5,27 @@ class LinearPotential(object):
     def __init__(self, representation):
         self.representation = representation
 
-    def fit(self, traj, noise=1e-6, 
-            features=None, energy_name=None, force_name=None):
-        self.noise = noise
+    def fit(self, traj, e_noise=1e-8, f_noise=1e-8, features=None):
 
-        e = np.array([t.info[energy_name] for t in traj])
-        if force_name is not None:
+        e = np.array([t.info[self.representation.energy_name] for t in traj])
+        if self.representation.force_name is not None:
             f = []
-            [f.extend(t.get_array(force_name)) for t in traj]
+            [f.extend(t.get_array(self.representation.force_name)) for t in traj]
             f = np.array(f)
         else:
             f = None
         if features is None:
             features = self.representation.transform(traj)
-        self.fit_from_features(self, features, e, f, noise=1e-6)
+        self.fit_from_features(self, features, e, f, e_noise, f_noise)
 
-    def fit_from_features(self, features, noise, e, f=None, mean_peratom=True):
+    def fit_from_features(self, features, e, f=None, e_noise=1e-8, f_noise=1e-8):
         self.representation = features.representation
-        self.noise = noise
-
-        if mean_peratom:
-            nat = features.get_nb_atoms_per_frame()
-            mean_peratom_energy = np.mean(e / nat)
-            e_adj = e - nat*mean_peratom_energy
-        else:
-            mean_peratom_energy = 0
-            e_adj = e
+        self.e_noise = e_noise
+        self.f_noise = f_noise
 
         if f is None:
             X_tot = features.X
-            Y_tot = e_adj
+            Y_tot = e
         else:
             X_tot = np.concatenate(
                 (
@@ -44,18 +35,18 @@ class LinearPotential(object):
                     features.dX_dr[:, 2, :],
                 ),
                 axis=0)
-            Y_tot = np.concatenate((e_adj, f[:, 0], f[:, 1], f[:, 2]), axis=0)
+            Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
 
         # ftf shape is (S, S)
         gtg = np.einsum("na, nb -> ab", X_tot, X_tot)
         # Calculate fY
         gY = np.einsum("na, n -> a", X_tot, Y_tot)
         # Add regularization
-        noise = self.noise * np.ones(len(gtg))
+        noise = self.e_noise*np.ones(len(gtg))
+        noise[len(e):] = self.f_noise
         gtg[np.diag_indices_from(gtg)] += noise
         weights, _, _, _ = np.linalg.lstsq(gtg, gY, rcond=None)
         self.weights = weights
-        self.mean_peratom_energy = mean_peratom_energy
 
     def predict(self, atoms, forces=True, stress=False, features=None):
         at = atoms.copy()
@@ -66,7 +57,7 @@ class LinearPotential(object):
 
     def predict_from_features(self, features, forces=False, stress=False):
         prediction = {}
-        prediction['energy'] = np.dot(features.X, self.weights) + features.get_nb_atoms_per_frame() * self.mean_peratom_energy
+        prediction['energy'] = np.dot(features.X, self.weights)
         if forces:
             prediction['forces'] = np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
         if stress:

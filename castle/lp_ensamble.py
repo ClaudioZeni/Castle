@@ -19,8 +19,7 @@ class LPEnsamble(object):
         self.e_b = None
         self.f_b = None
 
-    def fit(self, traj, noise=1e-6, features=None):
-        self.noise = noise
+    def fit(self, traj, e_noise=1e-6, f_noise=1e-8, features=None):
         if self.baseline_calculator:
             self.compute_baseline_predictions(traj)
 
@@ -34,10 +33,11 @@ class LPEnsamble(object):
         if features is None:
             features = self.representation.transform(traj)
         features = self.representation.transform(traj)
-        self.fit_from_features(features, e, f, noise=1e-6)
+        self.fit_from_features(features, e, f, e_noise, f_noise)
 
-    def fit_from_features(self, features, e, f, noise=1e-6):
-        self.noise = noise
+    def fit_from_features(self, features, e, f, e_noise=1e-6, f_noise=1e-8):
+        self.e_noise = e_noise
+        self.f_noise = f_noise
         self.representation = features.representation
         nat = features.get_nb_atoms_per_frame()
         nsp = len(self.representation.species)
@@ -46,10 +46,6 @@ class LPEnsamble(object):
         if self.e_b is not None:
             e -= self.e_b
             f -= self.f_b
-
-        # Remove atomic energy contributions
-        self.mean_peratom_energy = np.mean(e / nat)
-        e_adj = e - nat*self.mean_peratom_energy
 
         potentials = {}
         structure_ids = np.arange(len(features))
@@ -60,7 +56,7 @@ class LPEnsamble(object):
             for i in np.arange(len(nat)):
                 fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
             pot = LinearPotential(self.representation)
-            pot.fit_from_features(features_, self.noise, e_adj[mask], f[fmask], mean_peratom=False)
+            pot.fit_from_features(features_, e[mask], f[fmask], self.e_noise, self.f_noise)
 
             potentials[lab] = pot
 
@@ -137,7 +133,7 @@ class LPEnsamble(object):
             nat_counter += nat[i]
 
             prediction['energy'][i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, 
-                                                 weights['energy']) + self.mean_peratom_energy*nat[i]
+                                                 weights['energy'])
 
         # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
         if prediction['energy'].shape[0] == 1 and stress:
