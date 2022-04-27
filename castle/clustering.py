@@ -1,6 +1,6 @@
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans
 import numpy as np
 
 
@@ -75,13 +75,27 @@ class Clustering(object):
 
         elif self.clustering_type == 'kmeans':
             if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X, KMeans())
+                model = self.optimize_n_clusters(X_, KMeans())
             else:
-                model = KMeans(n_clusters=n_clusters).fit(X)
+                model = KMeans(n_clusters=n_clusters).fit(X_)
             self.n_clusters = model.n_clusters
-            self.labels = model.predict(X)
+            self.labels = model.predict(X_)
             self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
-            self.centers = model.cluster_centers_
+            self.centers = model.cluster_centers_ 
+            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+            self.cov_dets = None
+
+        elif self.clustering_type == 'adp':
+            from dadapy import Data
+            mean = np.mean(X, axis=0)
+            std = np.std(X, axis=0)
+            X_ = X#(X - mean[None, :]) / std[None, :]
+            data = Data(X_)
+            data.compute_clustering(Z = 1.65, halo=False)
+            self.n_clusters = data.N_clusters
+            self.labels = data.cluster_assignment
+            self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
+            self.centers = np.array([X[i] for i in data.cluster_centers])
             self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
             self.cov_dets = None
 
@@ -96,7 +110,7 @@ class Clustering(object):
         """
         diff = X[:, None, :] - self.centers[None, :, :]
 
-        if self.clustering_type == 'kmeans':
+        if self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
             # Compute exponential disrance
             weights = self.weights[None, :]**0.5/np.sum((self.precisions[None, :, :]*diff**4), axis = 2)
             # Normalize to get sums up to 1
@@ -116,7 +130,7 @@ class Clustering(object):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
             return self.get_models_weight_gmm(X_avg, dX_dr, dX_ds, forces, stress)
 
-        elif self.clustering_type == 'kmeans':
+        elif self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
             return self.get_models_weight_kmeans(X_avg, dX_dr, dX_ds, forces, stress)
 
     def get_models_weight_kmeans(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):

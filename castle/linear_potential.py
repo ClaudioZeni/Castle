@@ -71,7 +71,7 @@ class LinearPotential(object):
             prediction['stress'] = prediction['stress'][0]
         return prediction
 
-    def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-1], maxiter=5, kfold=5):
+    def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-2], maxiter=5, kfold=5):
         noises = np.array([bounds, bounds])
         print("Noise Optimization")
         for i in progressbar(np.arange(maxiter)):
