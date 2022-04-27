@@ -75,11 +75,11 @@ class Clustering(object):
 
         elif self.clustering_type == 'kmeans':
             if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X_, KMeans())
+                model = self.optimize_n_clusters(X, KMeans())
             else:
-                model = KMeans(n_clusters=n_clusters).fit(X_)
+                model = KMeans(n_clusters=n_clusters).fit(X)
             self.n_clusters = model.n_clusters
-            self.labels = model.predict(X_)
+            self.labels = model.predict(X)
             self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
             self.centers = model.cluster_centers_ 
             self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
@@ -89,7 +89,7 @@ class Clustering(object):
             from dadapy import Data
             mean = np.mean(X, axis=0)
             std = np.std(X, axis=0)
-            X_ = X#(X - mean[None, :]) / std[None, :]
+            X_ = (X - mean[None, :]) / std[None, :]
             data = Data(X_)
             data.compute_clustering(Z = 1.65, halo=False)
             self.n_clusters = data.N_clusters
