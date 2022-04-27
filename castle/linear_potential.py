@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.metrics import mean_squared_error
-from .utils import progressbar
+from .representation import progressbar
 
 class LinearPotential(object):
     def __init__(self, representation):

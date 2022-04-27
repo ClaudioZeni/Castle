@@ -236,16 +236,3 @@ def load_everything(folder, tr_traj_name, val_traj_name, tr_features_name, val_f
     nat_tr = get_nat(tr_frames)
     return e_t, f_t, e_val, f_val, nat_tr, nat_val, tr_features, val_features
 
-
-def progressbar(it, prefix="", size=60, file=sys.stdout):
-    count = len(it)
-    def show(j):
-        x = int(size*j/count)
-        file.write("%s[%s%s] %i/%i\r" % (prefix, "#"*x, "."*(size-x), j, count))
-        file.flush()        
-    show(0)
-    for i, item in enumerate(it):
-        yield item
-        show(i+1)
-    file.write("\n")
-    file.flush()

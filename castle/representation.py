@@ -1,4 +1,4 @@
-import ase
+import sys
 import numpy as np
 
 from .ace_interface import (descriptors_from_frame,
@@ -7,7 +7,6 @@ from .ace_interface import (descriptors_from_frame,
                             local_descriptors_from_frame_no_forces,
                             get_basis)
 from .features import GlobalFeatures, LocalFeatures
-from .utils import progressbar
 
 
 class AceGlobalRepresentation(object):
@@ -174,4 +173,15 @@ class AceLocalRepresentation(object):
         X_local = local_descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X_local
 
-
+def progressbar(it, prefix="", size=60, file=sys.stdout):
+    count = len(it)
+    def show(j):
+        x = int(size*j/count)
+        file.write("%s[%s%s] %i/%i\r" % (prefix, "#"*x, "."*(size-x), j, count))
+        file.flush()        
+    show(0)
+    for i, item in enumerate(it):
+        yield item
+        show(i+1)
+    file.write("\n")
+    file.flush()
