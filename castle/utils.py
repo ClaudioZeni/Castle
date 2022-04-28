@@ -1,13 +1,18 @@
 import numpy as np
-import joblib, sys, pickle
+import joblib, pickle
 from sklearn.metrics import r2_score
 from ase.io import read
-from . import AceGlobalRepresentation, AceLocalRepresentation
+from .representation import AceRepresentation
 from ase.data import atomic_numbers
+from .features import GlobalFeatures, LocalFeatures
 
 
 def dump(fn, obj, compress=3, protocol=pickle.HIGHEST_PROTOCOL):
-    joblib.dump(obj, fn, protocol=protocol, compress=compress)
+    try:
+        joblib.dump(obj, fn, protocol=protocol, compress=compress)
+    except:
+        del obj.representation.basis
+        joblib.dump(obj, fn, protocol=protocol, compress=compress)
 
 
 def load(fn):
@@ -156,14 +161,11 @@ def extract_features(folder, train_filename, validation_filename=None,
 
     if species is None:
         species = list(set(tr_frames[0].get_atomic_numbers()))
-    if type(species)==str:
-        species = [atomic_numbers[species]]
-    representation = AceGlobalRepresentation(N, maxdeg, rcut, species, r0,
+    representation = AceRepresentation(N, maxdeg, rcut, species, r0,
                                              energy_name=energy_name, force_name=force_name)
-
-    tr_features = representation.transform(tr_frames)
+    tr_features = representation.transform(tr_frames, verbose=True)
     if validation_filename is not None:
-        val_features = representation.transform(val_frames)
+        val_features = representation.transform(val_frames, verbose=True)
         dump(folder + f"/tr_features_N_{N}_d_{maxdeg}_cut_{rcut}.xz", tr_features)
         dump(folder + f"/val_features_N_{N}_d_{maxdeg}_cut_{rcut}.xz", val_features)
         return tr_features, val_features
@@ -198,12 +200,12 @@ def extract_local_features(folder, train_filename, validation_filename=None,
         species = list(species_)
         del species_
 
-    representation = AceLocalRepresentation(N, maxdeg, rcut, species, r0,
+    representation = AceRepresentation(N, maxdeg, rcut, species, r0,
                                              energy_name=energy_name, force_name=force_name)
 
-    tr_features = representation.transform(tr_frames, compute_derivative)
+    tr_features = representation.transform_local(tr_frames, compute_derivative, verbose=True)
     if validation_filename is not None:
-        val_features = representation.transform(val_frames)
+        val_features = representation.transform_local(tr_frames, compute_derivative, verbose=True)
         print("WARNING: saving features is not available for local features")
         return tr_features, val_features
     	
@@ -235,4 +237,3 @@ def load_everything(folder, tr_traj_name, val_traj_name, tr_features_name, val_f
     nat_val = get_nat(val_frames)
     nat_tr = get_nat(tr_frames)
     return e_t, f_t, e_val, f_val, nat_tr, nat_val, tr_features, val_features
-

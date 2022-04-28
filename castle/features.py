@@ -61,7 +61,6 @@ class LocalFeatures(object):
         for i_frame in ids:
             st, nd = self.strides[i_frame], self.strides[i_frame + 1]
             strides.append(nd - st)
-
         obj = LocalFeatures(
             self.representation,
             self.X[ids],

@@ -17,9 +17,10 @@ class LinearPotential(object):
             f = None
         if features is None:
             features = self.representation.transform(traj)
-        self.fit_from_features(self, features, e, f, e_noise, f_noise, noise_optimization)
+        self.fit_from_features(features, e, f, e_noise, f_noise, noise_optimization)
 
-    def fit_from_features(self, features, e, f=None, e_noise=1e-8, f_noise=1e-8, noise_optimization=False):
+    def fit_from_features(self, features, e, f=None, e_noise=1e-8, f_noise=1e-8, noise_optimization=False,
+                          additional_local_dX_dr=None, additional_f=None):
         self.representation = features.representation
         self.e_noise = e_noise
         self.f_noise = f_noise
@@ -37,6 +38,11 @@ class LinearPotential(object):
                 ),
                 axis=0)
             Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
+
+            if additional_local_dX_dr is not None and additional_f is not None:
+                X_tot = np.concatenate((X_tot, additional_local_dX_dr[:, 0, :], 
+                additional_local_dX_dr[:, 1, :], additional_local_dX_dr[:, 2, :]))
+                Y_tot = np.concatenate((Y_tot, additional_f[:, 0], additional_f[:, 1], additional_f[:, 2]), axis=0)
 
         # ftf shape is (S, S)
         gtg = np.einsum("na, nb -> ab", X_tot, X_tot)
@@ -69,6 +75,23 @@ class LinearPotential(object):
         # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
         if prediction['energy'].shape[0] == 1 and stress:
             prediction['stress'] = prediction['stress'][0]
+        return prediction
+
+    def predict_local(self, atoms, forces=True, local_features=None):
+        at = atoms.copy()
+        at.wrap(eps=1e-11)
+        if local_features is None:
+            local_features = self.representation.transform_local([at])
+        return self.predict_from_local_features(local_features, forces)
+
+    def predict_from_local_features(self, local_features, forces=False):
+        prediction = {}
+        prediction['local_energy'] = np.einsum("md, d -> m", local_features.X[0], self.weights)
+        if forces:
+            prediction['local_forces'] = np.einsum("nmcd, d -> nmc", local_features.dX_dr[0], self.weights)
+
+        prediction['energy'] = np.sum(prediction['local_energy'], axis = -1)
+        prediction['forces'] = np.sum(prediction['local_forces'], axis = 0) - np.sum(prediction['local_forces'], axis = 1)
         return prediction
 
     def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-2], maxiter=5, kfold=5):

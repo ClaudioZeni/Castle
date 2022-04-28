@@ -79,8 +79,9 @@ def local_descriptors_from_frame(basis, frame, species,
                            force_name, virial_name)
     X = Main.environment_descriptor(basis, at.at)   
     dX_dr, dX_ds = Main.environment_d_descriptor(basis, at.at)
+    dX_ds = dX_ds[matrix_indices_in_voigt_notation, :][:, 0, 0, :]
     dX_dr = np.array(dX_dr)
-    X, dX_dr = add_onebody_local_term(frame, species, X, dX_dr)
+    X, dX_dr, dX_ds = add_onebody_local_term(frame, species, X, dX_dr, dX_ds)
     return  X, dX_dr, dX_ds
 
 
@@ -106,7 +107,7 @@ def add_onebody_term(frame, species, X, dX_dr=None, dX_ds=None):
     return X, dX_dr, dX_ds
 
 
-def add_onebody_local_term(frame, species, X, dX_dr=None):
+def add_onebody_local_term(frame, species, X, dX_dr=None, dX_ds=None):
     at_ns = frame.get_atomic_numbers()
     tally = np.zeros((len(at_ns), len(species)))
     for i in np.arange(len(at_ns)):
@@ -114,4 +115,6 @@ def add_onebody_local_term(frame, species, X, dX_dr=None):
     X = np.concatenate([X, tally], axis = -1)
     if dX_dr is not None:
         dX_dr = np.concatenate([dX_dr, np.zeros((dX_dr.shape[0], dX_dr.shape[1], len(species), 3))], axis = -2)
-    return X, dX_dr
+    if dX_ds is not None:
+        dX_ds = np.concatenate([dX_ds, np.zeros((6, len(species)))], axis = -1)
+    return X, dX_dr, dX_ds

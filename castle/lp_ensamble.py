@@ -2,17 +2,17 @@ import numpy as np
 from .linear_potential import LinearPotential
 from .clustering import Clustering
 
-class LPEnsamble(object):
+class LPEnsemble(object):
     def __init__(self, representation, clustering_type='kmeans', n_clusters='auto',
                  baseline_calculator=None, baseline_percentile=0):
         self.representation = representation
         self.clustering_type = clustering_type
         self.baseline_calculator = baseline_calculator
         if self.baseline_calculator is not None and baseline_percentile==0:
-            baseline_percentile = 0.1
+            baseline_percentile = 0
             print("""WARNING: Baseline has been given but baseline_percentile is set to 0.
         This would cause baseline to be ignored.
-        Setting baseline_percentile to 0.1""")
+        Setting baseline_percentile to 0""")
         self.clustering = Clustering(self.clustering_type, baseline_percentile)
         self.n_clusters = n_clusters
         self.e_b = None
@@ -30,8 +30,7 @@ class LPEnsamble(object):
         else:
             f = None
         if features is None:
-            features = self.representation.transform(traj)
-        features = self.representation.transform(traj)
+            features = self.representation.transform(traj, verbose=True)
         self.fit_from_features(features, e, f, e_noise, f_noise, noise_optimization)
 
     def fit_from_features(self, features, e, f, e_noise=1e-8, f_noise=1e-8, noise_optimization=False):
@@ -63,6 +62,7 @@ class LPEnsamble(object):
         self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
 
     def compute_baseline_predictions(self, traj):
+        print("Computing Baseline Predictions")
         e_b = []
         f_b = []
         for t in traj:
@@ -77,10 +77,8 @@ class LPEnsamble(object):
     def predict(self, atoms, forces=True, stress=False, features=None):
         at = atoms.copy()
         at.wrap(eps=1e-11)
-        manager = [at]
         if features is None:
-            features = self.representation.transform(manager)
-        
+            features = self.representation.transform([at])
         prediction = self.predict_from_features(features, forces, stress)
         if self.baseline_calculator is not None:
             at.set_calculator(self.baseline_calculator)
