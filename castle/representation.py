@@ -18,7 +18,7 @@ class AceRepresentation(object):
         self.N = N
         self.maxdeg = maxdeg
         self.rcut = float(rcut)
-        if species is not list:
+        if type(species) is not list:
             species = [species]
         for i in range(len(species)):
             if type(species[i])==str:
@@ -189,7 +189,7 @@ def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True):
 
 # Why is this here, you might ask?
 # Well I really don't know why, but if you call an 
-# AceRepresentation object with big N or maxdeg right away, python freezes.
+# AceRepresentation object with big N or maxdeg right away, python (or julia, dk) freezes.
 # If instead you first call AceRepresentation with small N and maxdeg, and then call the big one, no issue.
 # So there you have it
 a = AceRepresentation(3, 3, 3, 3)
