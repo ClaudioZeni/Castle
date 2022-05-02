@@ -2,6 +2,7 @@ import numpy as np
 from .linear_potential import LinearPotential
 from .clustering import Clustering
 
+
 class LPEnsemble(object):
     def __init__(self, representation, clustering_type='kmeans', n_clusters='auto',
                  baseline_calculator=None, baseline_percentile=0):

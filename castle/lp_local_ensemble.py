@@ -29,7 +29,7 @@ class LPLocalEnsemble(object):
         else:
             f = None
         if local_features is None:
-            local_features = self.representation.transform_local(traj)
+            local_features = self.representation.transform_local(traj, verbose=True)
         self.fit_from_local_features(local_features, e, f, e_noise, f_noise, noise_optimization)
 
     def fit_from_local_features(self, local_features, e, f, e_noise=1e-8, f_noise=1e-8, noise_optimization=False):
@@ -55,18 +55,15 @@ class LPLocalEnsemble(object):
         # Global mask is constructed for each cluster using the structures that have 
         # "a lot of" local environment belonging to that cluster. Always contain at least one structure
         global_mask = get_structure_indexes_from_local_labels(self.clustering.labels, local_features.strides)
+
         for lab in list(set(self.clustering.labels)):
             # Local mask is directly derived from clustering 
             local_mask = self.clustering.labels == lab
-            print(structure_ids[global_mask[lab]])
-            print(global_features.X[np.array([0], dtype = 'int')])
             features_ = global_features.get_subset(structure_ids[global_mask[lab]])
-            fmask = np.zeros(0, dtype="bool")
-            for i in np.arange(len(nat)):
-                f_global_mask = np.append(fmask, np.array([global_mask[i]] * nat[i]))
-
+            f_global_mask = [np.arange(local_features.strides[i], local_features.strides[i+1]) for i in global_mask[lab]]
+            f_global_mask = np.ravel(f_global_mask)
             pot = LinearPotential(self.representation)
-            pot.fit_from_features(features_, e[global_mask], f[f_global_mask], self.e_noise, self.f_noise, 
+            pot.fit_from_features(features_, e[global_mask[lab]], f[f_global_mask, :], self.e_noise, self.f_noise, 
                                   noise_optimization, flat_dX_dr[local_mask], f[local_mask])
             potentials[lab] = pot
 
@@ -93,7 +90,6 @@ class LPLocalEnsemble(object):
         
         prediction = self.predict_from_local_features(local_features, forces, stress)
         if self.baseline_calculator is not None:
-            # TODO Check if this is actually an error: baseline contribution should be weighted right?
             at.set_calculator(self.baseline_calculator)
             prediction['energy'] += at.get_potential_energy()
             if forces:

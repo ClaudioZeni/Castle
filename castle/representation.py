@@ -56,7 +56,7 @@ class AceRepresentation(object):
         if compute_derivative:
             dX_dr = np.zeros((n_atoms, 3, self.n_feat))
             dX_ds = np.zeros((n_frames, 6, self.n_feat))
-        for i_frame in progressbar(range(len(frames)), verbose):
+        for i_frame in progressbar(range(len(frames)), verbose=verbose):
             frame = frames[i_frame]
             if compute_derivative:
                 st, nd = strides[i_frame], strides[i_frame + 1]
@@ -64,10 +64,10 @@ class AceRepresentation(object):
                     X[i_frame],
                     dX_dr[st:nd],
                     dX_ds[i_frame],
-                ) = self._get_global_representation_single_species(self.basis, frame)
+                ) = self._get_global_representation(self.basis, frame)
                 dX_ds[i_frame] /= frame.get_volume()
             else:
-                X[i_frame] = self._get_global_representation_single_species_no_forces(
+                X[i_frame] = self._get_global_representation_no_forces(
                     self.basis, frame)
 
         if compute_derivative:
@@ -75,14 +75,14 @@ class AceRepresentation(object):
         else:
             return GlobalFeatures(self, X, None, None, strides, self.species)
 
-    def _get_global_representation_single_species(self, basis, frame):
+    def _get_global_representation(self, basis, frame):
         X, dX_dr_global, dX_ds_global = descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
         return X, dX_dr_global, dX_ds_global
 
-    def _get_global_representation_single_species_no_forces(self, basis, frame):
+    def _get_global_representation_no_forces(self, basis, frame):
         X = descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X
 
@@ -107,16 +107,16 @@ class AceRepresentation(object):
         if compute_derivative:
             dX_dr = []
             dX_ds = []
-        for i_frame in progressbar(range(len(frames)), verbose):
+        for i_frame in progressbar(range(len(frames)), verbose=verbose):
             frame = frames[i_frame]
             if compute_derivative:
-                X_, dX_dr_, dX_ds_ =  self._get_local_representation_single_species(self.basis, frame)
+                X_, dX_dr_, dX_ds_ =  self._get_local_representation(self.basis, frame)
                 dX_ds_ /= frame.get_volume()
                 X.append(X_)
                 dX_dr.append(np.array(dX_dr_))
                 dX_ds.append(np.array(dX_ds_))
             else:
-                X.append(self._get_local_representation_single_species_no_forces(
+                X.append(self._get_local_representation_no_forces(
                     self.basis, frame))
 
         if compute_derivative:
@@ -135,13 +135,13 @@ class AceRepresentation(object):
         strides = np.cumsum(strides)
 
         if compute_derivative:
-            X_, dX_dr_, dX_ds_ =  self._get_local_representation_single_species(self.basis, frame)
+            X_, dX_dr_, dX_ds_ =  self._get_local_representation(self.basis, frame)
             dX_ds_ /= frame.get_volume()
             X = np.array([X_])
             dX_dr = np.array([dX_dr_])
             dX_ds = np.array([dX_ds_])
         else:
-            X = np.array([self._get_local_representation_single_species_no_forces(
+            X = np.array([self._get_local_representation_no_forces(
                 self.basis, frame)])
 
         if compute_derivative:
@@ -149,7 +149,7 @@ class AceRepresentation(object):
         else:
             return LocalFeatures(self, np.array(X), None, None, strides, self.species)
     
-    def _get_local_representation_single_species(self, basis, frame):
+    def _get_local_representation(self, basis, frame):
         X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
@@ -157,14 +157,14 @@ class AceRepresentation(object):
         dX_dr_local = np.transpose(dX_dr_local, axes = [0, 1, 3, 2])
         return X, dX_dr_local, dX_ds_local
         
-    def _get_local_representation_single_species_no_forces(self, basis, frame):
+    def _get_local_representation_no_forces(self, basis, frame):
         X_local = local_descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X_local
 
     def local_to_global_features(self, local_features):
-        global_X = [np.sum(X, axis =0) for X in local_features.X]
+        global_X = np.array([np.sum(X, axis =0) for X in local_features.X])
         global_dX = np.concatenate([(np.sum(dX_dr, axis = 0) - np.sum(dX_dr, axis = 1)) for dX_dr in local_features.dX_dr])
-        global_features = GlobalFeatures(self, global_X, global_dX, local_features.dX_ds, local_features.strides, local_features.species)
+        global_features = GlobalFeatures(self, global_X, global_dX, np.array(local_features.dX_ds), local_features.strides, local_features.species)
         return global_features
 
 

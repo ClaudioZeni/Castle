@@ -4,13 +4,12 @@ from sklearn.metrics import r2_score
 from ase.io import read
 from .representation import AceRepresentation
 from ase.data import atomic_numbers
-from .features import GlobalFeatures, LocalFeatures
 
 
 def dump(fn, obj, compress=3, protocol=pickle.HIGHEST_PROTOCOL):
     try:
         joblib.dump(obj, fn, protocol=protocol, compress=compress)
-    except:
+    except TypeError:
         del obj.representation.basis
         joblib.dump(obj, fn, protocol=protocol, compress=compress)
 

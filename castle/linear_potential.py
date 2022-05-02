@@ -16,7 +16,7 @@ class LinearPotential(object):
         else:
             f = None
         if features is None:
-            features = self.representation.transform(traj)
+            features = self.representation.transform(traj, verbose=True)
         self.fit_from_features(features, e, f, e_noise, f_noise, noise_optimization)
 
     def fit_from_features(self, features, e, f=None, e_noise=1e-8, f_noise=1e-8, noise_optimization=False,

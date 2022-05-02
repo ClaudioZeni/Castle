@@ -98,7 +98,11 @@ def add_onebody_term(frame, species, X, dX_dr=None, dX_ds=None):
     unique_counts = dict(zip(unique, counts))
     tally = np.zeros(len(species))
     for i, s in enumerate(species):
-        tally[i] = unique_counts[s]
+        # Fix to prevent error messages when not all declared species are present in a frame
+        try:
+            tally[i] = unique_counts[s]
+        except KeyError:
+            pass
     if dX_dr is not None:
         dX_dr = np.concatenate([dX_dr, np.zeros((dX_dr.shape[0], 3, len(tally)))], axis = -1)
     if dX_ds is not None:
@@ -111,7 +115,11 @@ def add_onebody_local_term(frame, species, X, dX_dr=None, dX_ds=None):
     at_ns = frame.get_atomic_numbers()
     tally = np.zeros((len(at_ns), len(species)))
     for i in np.arange(len(at_ns)):
-        tally[i, :] = 1*(species == at_ns[i])
+        # Fix to prevent error messages when not all declared species are present in a frame
+        try:
+            tally[i, :] = 1*(species == at_ns[i])
+        except KeyError:
+            pass
     X = np.concatenate([X, tally], axis = -1)
     if dX_dr is not None:
         dX_dr = np.concatenate([dX_dr, np.zeros((dX_dr.shape[0], dX_dr.shape[1], len(species), 3))], axis = -2)
