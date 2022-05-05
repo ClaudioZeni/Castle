@@ -63,10 +63,17 @@ class LocalFeatures(object):
             strides.append(nd - st)
         obj = LocalFeatures(
             self.representation,
-            self.X[ids],
-            self.dX_dr[ids],
-            self.dX_ds[ids],
+            [self.X[i] for i in ids],
+            [self.dX_dr[i] for i in ids],
+            [self.dX_ds[i] for i in ids],
             np.cumsum(strides),
             self.species,
         )
         return obj
+
+
+def local_to_global_features(representation, local_features):
+    global_X = np.array([np.sum(X, axis =0) for X in local_features.X])
+    global_dX = np.concatenate([(np.sum(dX_dr, axis = 0) - np.sum(dX_dr, axis = 1)) for dX_dr in local_features.dX_dr])
+    global_features = GlobalFeatures(representation, global_X, global_dX, np.array(local_features.dX_ds), local_features.strides, local_features.species)
+    return global_features

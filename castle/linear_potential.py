@@ -54,8 +54,8 @@ class LinearPotential(object):
         noise = self.e_noise*np.ones(len(gtg))
         noise[len(e):] = self.f_noise
         gtg[np.diag_indices_from(gtg)] += noise
-        weights, _, _, _ = np.linalg.lstsq(gtg, gY, rcond=None)
-        self.weights = weights
+        alpha, _, _, _ = np.linalg.lstsq(gtg, gY, rcond=None)
+        self.alpha = alpha
 
     def predict(self, atoms, forces=True, stress=False, features=None):
         at = atoms.copy()
@@ -66,11 +66,11 @@ class LinearPotential(object):
 
     def predict_from_features(self, features, forces=False, stress=False):
         prediction = {}
-        prediction['energy'] = np.dot(features.X, self.weights)
+        prediction['energy'] = np.dot(features.X, self.alpha)
         if forces:
-            prediction['forces'] = np.einsum("mcd, d -> mc", features.dX_dr, self.weights)
+            prediction['forces'] = np.einsum("mcd, d -> mc", features.dX_dr, self.alpha)
         if stress:
-            prediction['stress'] = np.einsum("ncd, d -> nc", features.dX_ds, self.weights)
+            prediction['stress'] = np.einsum("ncd, d -> nc", features.dX_ds, self.alpha)
 
         # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
         if prediction['energy'].shape[0] == 1 and stress:
@@ -86,9 +86,9 @@ class LinearPotential(object):
 
     def predict_from_local_features(self, local_features, forces=False):
         prediction = {}
-        prediction['local_energy'] = np.einsum("md, d -> m", local_features.X[0], self.weights)
+        prediction['local_energy'] = np.einsum("md, d -> m", local_features.X[0], self.alpha)
         if forces:
-            prediction['local_forces'] = np.einsum("nmcd, d -> nmc", local_features.dX_dr[0], self.weights)
+            prediction['local_forces'] = np.einsum("mncd, d -> mnc", local_features.dX_dr[0], self.alpha)
 
         prediction['energy'] = np.sum(prediction['local_energy'], axis = -1)
         prediction['forces'] = np.sum(prediction['local_forces'], axis = 0) - np.sum(prediction['local_forces'], axis = 1)

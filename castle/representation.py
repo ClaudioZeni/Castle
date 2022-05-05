@@ -107,7 +107,7 @@ class AceRepresentation(object):
         if compute_derivative:
             dX_dr = []
             dX_ds = []
-        for i_frame in progressbar(range(len(frames)), verbose=verbose):
+        for i_frame in progressbar(range(len(frames)), verbose=verbose, local=True):
             frame = frames[i_frame]
             if compute_derivative:
                 X_, dX_dr_, dX_ds_ =  self._get_local_representation(self.basis, frame)
@@ -161,16 +161,13 @@ class AceRepresentation(object):
         X_local = local_descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         return X_local
 
-    def local_to_global_features(self, local_features):
-        global_X = np.array([np.sum(X, axis =0) for X in local_features.X])
-        global_dX = np.concatenate([(np.sum(dX_dr, axis = 0) - np.sum(dX_dr, axis = 1)) for dX_dr in local_features.dX_dr])
-        global_features = GlobalFeatures(self, global_X, global_dX, np.array(local_features.dX_ds), local_features.strides, local_features.species)
-        return global_features
 
 
-def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True):
-    if verbose:
-        file.write("Computing Descriptors \n")
+def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True, local=False):
+    if verbose and not local:
+        file.write("Computing Features \n")
+    if verbose and local:
+        file.write("Computing Local Features \n")
     count = len(it)
     def show(j):
         x = int(size*j/count)

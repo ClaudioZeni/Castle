@@ -60,7 +60,7 @@ class LPEnsemble(object):
             potentials[lab] = pot
 
         self.potentials = potentials
-        self.alphas = np.array([self.potentials[i].weights for i in range(len(self.potentials))])
+        self.alphas = np.array([self.potentials[i].alpha for i in range(len(self.potentials))])
 
     def compute_baseline_predictions(self, traj):
         print("Computing Baseline Predictions")

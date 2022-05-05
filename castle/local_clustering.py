@@ -50,26 +50,26 @@ class LocalClustering(object):
             self.labels = model.predict(X)
             self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
             self.centers = model.cluster_centers_ 
-            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+            self.precisions = 1/(np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)]))
 
         elif self.clustering_type == 'adp':
             from dadapy import Data
             mean = np.mean(X, axis=0)
             std = np.std(X, axis=0)
             X_ = (X - mean[None, :]) / std[None, :]
-            data = Data(X_)
-            data.compute_clustering(Z = 1.65, halo=False)
-            self.n_clusters = data.N_clusters
-            self.labels = data.cluster_assignment
+            model = Data(X_)
+            model.compute_clustering(Z = 2, halo=False)
+            self.n_clusters = model.N_clusters
+            self.labels = model.cluster_assignment
             self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
-            self.centers = np.array([X[i] for i in data.cluster_centers])
-            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+            self.centers = np.array([X[i] for i in model.cluster_centers])
+            self.precisions = 1/(np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)]))
 
         if self.baseline_percentile > 0:
             self.get_baseline_hyperparameter(X)
         else:
             self.baseline_prob = 0
-            
+
     def get_baseline_hyperparameter(self, X):
         """
         order shape: n, s, d
@@ -93,55 +93,48 @@ class LocalClustering(object):
 
     def get_models_weight_kmeans(self, X, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
-            of models for a single structure.
+            of models for a set of atoms.
 
-        m: number of atoms in configuration
+        m, n: number of atoms in configuration
+        s: number of models
         c: cartesian coordinates
         d: number of dimensions of descriptor
-        s: number of models
 
-        X_avg: (d)
-        dX_dr: (m, c, d)
+        X: (m, d)
+        dX_dr: (m, n, c, d)
         self.centers : (s, d) 
         self.precisions : (s, d) 
         self.weights : (s)
         self.cov_dets : (s)
-        proba: (s)
-        single_proba_der: (s, m, c)
+        proba: (m, s)
+        single_proba_force: (m, n, s, c)
         softmax_der: (s, s)
-        proba_der: (m, s, c)
+        proba_der: (m, n, s, c)
         """
 
         weights = {}
-        # Distance from center
-        diff = X[None, :] - self.centers[:, :]
-        # Compute exponential disrance
-        proba = self.weights**0.5/np.sum((self.precisions*diff**4), axis = 1)
+        # Distance from center, shape msd
+        diff = X[:, None, :] - self.centers[None, :, :]
+        # Compute exponential disrance, shape ms
+        proba = self.weights**0.5/np.sum((self.precisions*diff**4), axis = 2)
         # Normalize to get sums up to 1
         # To avoid nans if all clusters have probability 0 or nan
-        proba = np.nan_to_num(proba, copy=False, nan=0)
-        if not sum(proba) == 0:
-            proba_sum = np.sum(proba) + self.baseline_prob
-            weights['energy'] = proba/proba_sum
-        else:
-            weights['energy'] = np.zeros(len(proba))
+        proba = np.nan_to_num(proba, copy=False, nan=0) # shape ms
+        proba_sum = np.sum(proba, axis = -1) + self.baseline_prob # shape m
+        weights['energy'] = proba/proba_sum[:, None]
+
         if forces or stress:
-            if not sum(proba) == 0:
-                # TODO this is a very strange hotfix for the derivative when the baseline is nonzero.
-                # This is NOT correct but it kinda works
-                sum_der = - proba[:, None] / np.sum(proba)**2 + np.eye(len(proba)) / np.sum(proba)
-                sum_der *= (1-self.baseline_prob/proba_sum)
+            # shape mss
+            sum_der = - proba[:, :, None] / (np.sum(proba, axis = -1)[:, None, None])**2 + np.eye(proba.shape[1])[None, :, :] / np.sum(proba, axis = -1)[:, None, None]
+            sum_der *= (1-self.baseline_prob/proba_sum)[:, None, None]
         if forces:
-            if not sum(proba) == 0:
-                single_proba_force = np.einsum('s, mcd, sd -> smc', proba, dX_dr, -4/self.precisions/diff)
-                weights['forces'] = np.einsum('smc, ts -> msc', single_proba_force, sum_der)
-            else:
-                weights['forces'] = np.zeros((dX_dr.shape[0], len(proba), 3))
+            single_proba_force = np.einsum('ms, mncd, msd -> mnsc', proba, dX_dr, -4/self.precisions/diff)
+            weights['forces'] = np.einsum('mnsc, nst -> mnsc', single_proba_force, sum_der)
+
         if stress:
             if not sum(proba) == 0:
                 single_proba_stress = np.einsum('s, cd, sd -> sc', proba, dX_ds[0], -4/self.precisions/diff)
                 weights['stress'] = np.einsum('sc, ts -> sc', single_proba_stress, sum_der)
             else:
                 weights['stress'] = np.zeros((len(proba), 6))
-
         return weights

@@ -88,7 +88,7 @@ def local_descriptors_from_frame(basis, frame, species,
 def local_descriptors_from_frame_no_forces(basis, frame, species, energy_name="energy"):
     at = frame_to_julia_at(frame, energy_name)  
     X = Main.environment_descriptor(basis, at.at)
-    X, _ = add_onebody_local_term(frame, species, X)
+    X, _, __ = add_onebody_local_term(frame, species, X)
     return X
 
 
@@ -117,7 +117,7 @@ def add_onebody_local_term(frame, species, X, dX_dr=None, dX_ds=None):
     for i in np.arange(len(at_ns)):
         # Fix to prevent error messages when not all declared species are present in a frame
         try:
-            tally[i, :] = 1*(species == at_ns[i])
+            tally[i, :] = (species == at_ns[i]).astype('float')
         except KeyError:
             pass
     X = np.concatenate([X, tally], axis = -1)

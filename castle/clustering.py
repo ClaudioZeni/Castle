@@ -41,6 +41,7 @@ class Clustering(object):
                             to each atom in each structure
 
         """
+        print("Clustering data")
         if self.clustering_type == 'e_gmm':
             # Resize X based only on global std and energy std, separately
             # So that e is comparable to X but we do not lose information
@@ -103,7 +104,7 @@ class Clustering(object):
             self.get_baseline_hyperparameter(X)
         else:
             self.baseline_prob = 0
-            
+
     def get_baseline_hyperparameter(self, X):
         """
         order shape: n, s, d
@@ -149,7 +150,7 @@ class Clustering(object):
         self.weights : (s)
         self.cov_dets : (s)
         proba: (s)
-        single_proba_der: (s, m, c)
+        single_proba_force: (s, m, c)
         softmax_der: (s, s)
         proba_der: (m, s, c)
         """
