@@ -87,6 +87,9 @@ class LPLocalEnsemble(object):
     def predict(self, atoms, forces=True, stress=False, global_features=None, local_features=None):
         at = atoms.copy()
         at.wrap(eps=1e-11)
+
+        # TODO: just like in fit, try to call local features 
+        # without derivative and global with
         if local_features is None:
             local_features = self.representation.transform_local([at])
         # if global_features is None:
@@ -124,7 +127,8 @@ class LPLocalEnsemble(object):
                 f_1 = np.einsum("mncd, ms, sd -> mnc", dX_dr, weights['energy'], self.alphas)
                 f_1 = np.sum(f_1, axis = 0) - np.sum(f_1, axis = 1)
 
-                # Descriptor multiplied by the derivative of the weights, not sure about the sign
+                # TODO f_2 is not used at the moment
+                # Descriptor multiplied by the derivative of the weights
                 f_2 = np.einsum("md, mnsc, sd -> mnc", X, weights['forces'], self.alphas) 
                 f_2 = np.sum(f_2, axis = 0) - np.sum(f_2, axis = 1)
                 prediction['forces'][nat_counter:nat_counter+nat[i]] = f_1#- f_2
