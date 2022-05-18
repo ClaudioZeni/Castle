@@ -1,7 +1,6 @@
 import numpy as np
 from .linear_potential import LinearPotential
 from .local_clustering import LocalClustering
-from .features import local_to_global_features
 
 class LPLocalEnsemble(object):
     def __init__(self, representation, clustering_type='kmeans', n_clusters='auto',
@@ -30,12 +29,15 @@ class LPLocalEnsemble(object):
             f = np.array(f)
         else:
             f = None
-        if local_features is None:
+        if local_features is None or local_features.representation != self.representation:
             local_features = self.representation.transform_local(traj, 
             verbose=True, compute_derivative=False)
 
-        if global_features is None:
+        if global_features is None or global_features.representation != self.representation:
             global_features = self.representation.transform(traj, verbose=True)
+        
+        assert global_features.representation == global_features.representation == self.representation
+
         self.fit_from_local_features(global_features, local_features, e, f, e_noise, f_noise, noise_optimization)
 
     def fit_from_local_features(self, global_features, local_features, e, f, e_noise=1e-8, f_noise=1e-8, noise_optimization=False):

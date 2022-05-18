@@ -14,7 +14,7 @@ class AceRepresentation(object):
     def __init__(self, N, maxdeg, rcut, species, r0=1.0,
                  rin=1.0, constants=False,
                  energy_name="dft_energy", force_name="dft_force",
-                 virial_name="dft_virial"):
+                 virial_name="dft_virial", add_sqrt=False):
         self.N = N
         self.maxdeg = maxdeg
         self.rcut = float(rcut)
@@ -35,6 +35,9 @@ class AceRepresentation(object):
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
             self.n_feat += len(self.species)
+        self.add_sqrt = add_sqrt
+        if add_sqrt:
+            self.n_feat = 2*self.n_feat - len(self.species)
 
     def transform(self, frames, compute_derivative=True, verbose=False):
         if not hasattr(self, "basis"):
@@ -42,6 +45,8 @@ class AceRepresentation(object):
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
             self.n_feat += len(self.species)
+            if self.add_sqrt:
+                self.n_feat = 2*self.n_feat - len(self.species)
         if not isinstance(frames, list):
             frames = [frames]
         n_atoms = 0
@@ -80,10 +85,23 @@ class AceRepresentation(object):
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
+        if self.add_sqrt:
+            X_sqrt = abs(X[:-len(self.species)])**0.5
+            dX_dr_sqrt = dX_dr_global[:, :, :-len(self.species)]/2/(
+                np.sign(X[:-len(self.species)])*X_sqrt)[None, None, :]
+            dX_ds_sqrt = dX_ds_global[:, :-len(self.species)]/2/(
+                np.sign(X[:-len(self.species)])*X_sqrt)[None, :]
+            X = np.concatenate((X_sqrt, X))
+            dX_dr_global = np.concatenate((dX_dr_sqrt, dX_dr_global), axis = -1)
+            dX_ds_global = np.concatenate((dX_ds_sqrt, dX_ds_global), axis = -1)
+
         return X, dX_dr_global, dX_ds_global
 
     def _get_global_representation_no_forces(self, basis, frame):
         X = descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
+        if self.add_sqrt:
+            X_sqrt = abs(X[:-len(self.species)])**0.5
+            X = np.concatenate((X_sqrt, X))
         return X
 
     def transform_local(self, frames, compute_derivative=True, verbose=False):
@@ -92,6 +110,8 @@ class AceRepresentation(object):
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
             self.n_feat += len(self.species)
+            # if self.add_sqrt:
+            #     self.n_feat = 2*self.n_feat - len(self.species)
         if not isinstance(frames, list):
             frames = [frames]
         n_atoms = 0
@@ -130,6 +150,8 @@ class AceRepresentation(object):
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
             self.n_feat += len(self.species)
+            # if self.add_sqrt:
+            #     self.n_feat = 2*self.n_feat - len(self.species)
         strides = [0]
         strides.append(len(frame))
         strides = np.cumsum(strides)
@@ -150,15 +172,28 @@ class AceRepresentation(object):
             return LocalFeatures(self, np.array(X), None, None, strides, self.species)
     
     def _get_local_representation(self, basis, frame):
-        X, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame, self.species,
+        X_local, dX_dr_local, dX_ds_local = local_descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
         dX_dr_local = np.transpose(dX_dr_local, axes = [0, 1, 3, 2])
-        return X, dX_dr_local, dX_ds_local
+        # if self.add_sqrt:
+        #     X_sqrt = abs(X_local[:, :-len(self.species)])**0.5
+        #     dX_dr_sqrt = dX_dr_local[..., :-len(self.species)]/2/(
+        #         np.sign(X_local[:, :-len(self.species)])*X_sqrt)[:, None, None, :]
+        #     dX_ds_sqrt = dX_ds_local[:, :-len(self.species)]/2/np.sum(
+        #         np.sign(X_local[:, :-len(self.species)])*X_sqrt, axis = 0)[None, :]
+
+        #     X_local = np.concatenate((X_sqrt, X_local), axis = -1)
+        #     dX_dr_local = np.concatenate((dX_dr_sqrt, dX_dr_local), axis = -1)
+        #     dX_ds_local = np.concatenate((dX_ds_sqrt, dX_ds_local), axis = -1)
+        return X_local, dX_dr_local, dX_ds_local
         
     def _get_local_representation_no_forces(self, basis, frame):
         X_local = local_descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
+        # if self.add_sqrt:
+        #     X_sqrt = abs(X_local[:, :-len(self.species)])**0.5
+        #     X_local = np.concatenate((X_sqrt, X_local), axis = -1)
         return X_local
 
 
