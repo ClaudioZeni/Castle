@@ -54,21 +54,18 @@ class LocalClustering(object):
 
         elif self.clustering_type == 'adp':
             from dadapy import Data
-            mean = np.mean(X, axis=0)
-            std = np.std(X, axis=0)
-            X_ = (X - mean[None, :]) / std[None, :]
-            model = Data(X_)
-            model.compute_clustering(Z = 2, halo=False)
-            self.n_clusters = model.N_clusters
-            self.labels = model.cluster_assignment
-            self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
-            self.centers = np.array([X[i] for i in model.cluster_centers])
-            self.precisions = 1/(np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)]))
+            data = Data(X)
+            data.compute_clustering_ADP(halo=False)
+            self.n_clusters = data.N_clusters
+            self.labels = data.cluster_assignment
+            self.data = data
 
         if self.baseline_percentile > 0:
             self.get_baseline_hyperparameter(X)
         else:
             self.baseline_prob = 0
+
+        print(f"Using {self.n_clusters} clusters")
 
     def get_baseline_hyperparameter(self, X):
         """
@@ -87,9 +84,11 @@ class LocalClustering(object):
         self.baseline_prob = np.sort(np.ravel(weights))[
             int(self.baseline_percentile*weights.shape[0]*weights.shape[1])]
 
-    def get_models_weight(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
-        if self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
-            return self.get_models_weight_kmeans(X_avg, dX_dr, dX_ds, forces, stress)
+    def get_models_weight(self, X, dX_dr=None, dX_ds=None, forces=False, stress=False):
+        if self.clustering_type == 'kmeans':
+            return self.get_models_weight_kmeans(X, dX_dr, dX_ds, forces, stress)
+        elif self.clustering_type == 'adp':
+            return self.get_models_weight_adp(X, dX_dr, dX_ds, forces, stress)
 
     def get_models_weight_kmeans(self, X, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
@@ -137,4 +136,29 @@ class LocalClustering(object):
                 weights['stress'] = np.einsum('sc, ts -> sc', single_proba_stress, sum_der)
             else:
                 weights['stress'] = np.zeros((len(proba), 6))
+        return weights
+
+    def get_models_weight_adp(self, X, dX_dr=None, dX_ds=None, forces=False, stress=False):
+        """Compute weight (and derivative w.r.t. each atom's position)
+            of models for a set of atoms.
+
+        m, n: number of atoms in configuration
+        s: number of models
+        c: cartesian coordinates
+        d: number of dimensions of descriptor
+
+        X: (m, d)
+        dX_dr: (m, n, c, d)
+        self.weights : (s)
+        """
+
+        weights = {}
+        weights['energy'] = self.data.predict_cluster_inverse_distance_smooth(X)[1]
+        if forces:
+            # TODO derivative w.r.t. clustering is missing
+            weights['forces'] = np.einsum('ms, mncd -> mnsc', weights['energy'], dX_dr)
+        if stress:
+            # TODO derivative w.r.t. clustering is missing
+            weights['stress'] = np.einsum('sc, cd -> sc', weights['energy'], dX_ds[0])
+
         return weights

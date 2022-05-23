@@ -29,14 +29,14 @@ class LPLocalEnsemble(object):
             f = np.array(f)
         else:
             f = None
-        if local_features is None or local_features.representation != self.representation:
+        if local_features is None or not self.representation.compare(local_features.representation):
             local_features = self.representation.transform_local(traj, 
             verbose=True, compute_derivative=False)
 
-        if global_features is None or global_features.representation != self.representation:
+        if global_features is None or not self.representation.compare(global_features.representation):
             global_features = self.representation.transform(traj, verbose=True)
         
-        assert global_features.representation == global_features.representation == self.representation
+        assert local_features.representation.compare(global_features.representation)
 
         self.fit_from_local_features(global_features, local_features, e, f, e_noise, f_noise, noise_optimization)
 

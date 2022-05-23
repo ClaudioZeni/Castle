@@ -196,6 +196,21 @@ class AceRepresentation(object):
         #     X_local = np.concatenate((X_sqrt, X_local), axis = -1)
         return X_local
 
+    def compare(self, representation):
+
+        if (
+            self.N == representation.N and self.maxdeg == representation.maxdeg and
+            self.rcut == representation.rcut and self.species == representation.species and
+            self.rin == representation.rin and self.r0 == representation.r0 and
+            self.constants == representation.constants and self.r0 == representation.r0 and
+            self.rin == representation.rin and self.add_sqrt == representation.add_sqrt and
+            self.energy_name == representation.energy_name and
+            self.force_name == representation.force_name and
+            self.virial_name == representation.virial_name
+            ):
+            return True
+        else:
+            return False
 
 
 def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True, local=False):
@@ -217,6 +232,7 @@ def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True, local=Fal
     if verbose:
         file.write("\n")
         file.flush()
+
 
 
 # Why is this here, you might ask?

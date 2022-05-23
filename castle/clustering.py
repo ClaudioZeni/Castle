@@ -88,35 +88,37 @@ class Clustering(object):
 
         elif self.clustering_type == 'adp':
             from dadapy import Data
-            mean = np.mean(X, axis=0)
-            std = np.std(X, axis=0)
-            X_ = (X - mean[None, :]) / std[None, :]
+            self.mean = np.mean(X, axis=0)
+            self.std = np.std(X, axis=0)
+            X_ = (X - self.mean[None, :]) / self.std[None, :]
             data = Data(X_)
-            data.compute_clustering(Z = 1.65, halo=False)
+            data.compute_clustering_ADP(halo=False)
             self.n_clusters = data.N_clusters
             self.labels = data.cluster_assignment
-            self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
-            self.centers = np.array([X[i] for i in data.cluster_centers])
-            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
-            self.cov_dets = None
+            self.data = data
 
         if self.baseline_percentile > 0:
             self.get_baseline_hyperparameter(X)
         else:
             self.baseline_prob = 0
 
+        print(f"Using {self.n_clusters} clusters")
+
     def get_baseline_hyperparameter(self, X):
         """
         order shape: n, s, d
         """
-        diff = X[:, None, :] - self.centers[None, :, :]
 
-        if self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
+        if self.clustering_type == 'kmeans':
+            diff = X[:, None, :] - self.centers[None, :, :]
             # Compute exponential disrance
             weights = self.weights[None, :]**0.5/np.sum((self.precisions[None, :, :]*diff**4), axis = 2)
             # Normalize to get sums up to 1
-
+        elif self.clustering_type == 'adp':
+            X_ = (X - self.mean[None, :]) / self.std[None, :]
+            _, weights = self.data.predict_cluster_inverse_distance_smooth(X_)
         elif self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
+            diff = X[:, None, :] - self.centers[None, :, :]
             # Compute exponential disrance
             weights = np.exp(-0.5*(np.einsum('nsf, sdf, nsd -> ns', diff, self.precisions, diff)))
             # Normalize for determinant of covariance and number of dimensions
@@ -131,8 +133,11 @@ class Clustering(object):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
             return self.get_models_weight_gmm(X_avg, dX_dr, dX_ds, forces, stress)
 
-        elif self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
+        elif self.clustering_type == 'kmeans':
             return self.get_models_weight_kmeans(X_avg, dX_dr, dX_ds, forces, stress)
+
+        elif self.clustering_type == 'adp':
+            return self.get_models_weight_adp(X_avg, dX_dr, dX_ds, forces, stress)
 
     def get_models_weight_kmeans(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
@@ -188,6 +193,19 @@ class Clustering(object):
                 weights['stress'] = np.zeros((len(proba), 6))
 
         return weights
+
+    def get_models_weight_adp(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
+
+        weights = {}
+        X_ = (X_avg - self.mean) / self.std
+        weights['energy'] = self.data.predict_cluster_inverse_distance_smooth(X_[None, :])[1][0]
+        if forces:
+                weights['forces'] = np.einsum('s, mcd -> msc', weights['energy'], dX_dr)
+        if stress:
+            weights['stress'] = np.einsum('s, cd -> sc', weights['energy'], dX_ds[0])
+
+        return weights
+
 
     def get_models_weight_gmm(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
