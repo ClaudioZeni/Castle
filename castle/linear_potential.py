@@ -96,8 +96,7 @@ class LinearPotential(object):
 
     def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-2], maxiter=5, kfold=5):
         noises = np.array([bounds, bounds])
-        print("Noise Optimization")
-        for i in progressbar(np.arange(maxiter)):
+        for i in progressbar(np.arange(maxiter), prefix="Noise Optimization"):
             loss = np.zeros((2, 2))
             for j in np.arange(4):
                 en = noises[0, j%2]

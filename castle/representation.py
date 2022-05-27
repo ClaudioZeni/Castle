@@ -61,7 +61,7 @@ class AceRepresentation(object):
         if compute_derivative:
             dX_dr = np.zeros((n_atoms, 3, self.n_feat))
             dX_ds = np.zeros((n_frames, 6, self.n_feat))
-        for i_frame in progressbar(range(len(frames)), verbose=verbose):
+        for i_frame in progressbar(range(len(frames)), verbose=verbose, prefix="Computing Features"):
             frame = frames[i_frame]
             if compute_derivative:
                 st, nd = strides[i_frame], strides[i_frame + 1]
@@ -127,7 +127,7 @@ class AceRepresentation(object):
         if compute_derivative:
             dX_dr = []
             dX_ds = []
-        for i_frame in progressbar(range(len(frames)), verbose=verbose, local=True):
+        for i_frame in progressbar(range(len(frames)), verbose=verbose, prefix="Computing Local Features"):
             frame = frames[i_frame]
             if compute_derivative:
                 X_, dX_dr_, dX_ds_ =  self._get_local_representation(self.basis, frame)
@@ -213,11 +213,7 @@ class AceRepresentation(object):
             return False
 
 
-def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True, local=False):
-    if verbose and not local:
-        file.write("Computing Features \n")
-    if verbose and local:
-        file.write("Computing Local Features \n")
+def progressbar(it, prefix="", size=60, file=sys.stdout, verbose=True):
     count = len(it)
     def show(j):
         x = int(size*j/count)

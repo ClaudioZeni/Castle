@@ -1,6 +1,7 @@
 from .linear_potential import LinearPotential
 from .lp_ensamble import LPEnsemble
 from .lp_local_ensemble import LPLocalEnsemble
+from .expanded_potential import ExpandedPotential
 from .calc_ase_interface import ASEMLCalculator
 from .representation import AceRepresentation
 from .features import GlobalFeatures
