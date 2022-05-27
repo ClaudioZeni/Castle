@@ -11,8 +11,9 @@ class ExpandedPotential(object):
 
     def create_projector(self, X):
         self.mean = np.mean(X, axis = 0)
+        self.std = np.std(X, axis = 0)
         self.random_matrix = np.random.normal(size = (X.shape[1], self.D)) / X.shape[1]**0.5
-        self.projector = self.random_matrix / np.std(X, axis = 0)[:, None]
+        self.projector = self.random_matrix / self.std[:, None]
 
     def project_x(self, X):
         return np.einsum('ns, sd -> nd', X - self.mean[None, :], self.projector)
@@ -83,10 +84,10 @@ class ExpandedPotential(object):
         else:
             X_tot = np.concatenate(
                 (
-                    X_p,
-                    dX_dr_p[:, 0, :],
-                    dX_dr_p[:, 1, :],
-                    dX_dr_p[:, 2, :],
+                    np.hstack(((features.X - self.mean[None, :]) / self.std[None, :], X_p)),
+                    np.hstack((features.dX_dr[:, 0, :], dX_dr_p[:, 0, :])),
+                    np.hstack((features.dX_dr[:, 1, :], dX_dr_p[:, 1, :])),
+                    np.hstack((features.dX_dr[:, 2, :], dX_dr_p[:, 2, :])),
                 ),
                 axis=0)
             Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
@@ -114,11 +115,13 @@ class ExpandedPotential(object):
     def predict_from_features(self, features, forces=False, stress=False):
         X_p, dX_dr_p, dX_ds_p = self.expand_basis(features, forces=forces, stress=stress)
         prediction = {}
-        prediction['energy'] = np.dot(X_p, self.alpha)
+        prediction['energy'] = np.dot(np.hstack(((features.X - self.mean[None, :]) / self.std[None, :], X_p)), self.alpha)
         if forces:
-            prediction['forces'] = np.einsum("mcd, d -> mc", dX_dr_p, self.alpha)
+            prediction['forces'] = np.einsum("mcd, d -> mc", np.concatenate(
+                (features.dX_dr, dX_dr_p), axis=-1), self.alpha)
         if stress:
-            prediction['stress'] = np.einsum("ncd, d -> nc", features.dX_ds, self.alpha)
+            prediction['stress'] = np.einsum("ncd, d -> nc", np.concatenate(
+                (features.dX_ds, dX_ds_p), axis=-1), self.alpha)
 
         # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
         if prediction['energy'].shape[0] == 1 and stress:
