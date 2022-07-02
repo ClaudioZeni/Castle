@@ -94,7 +94,7 @@ class LinearPotential(object):
         prediction['forces'] = np.sum(prediction['local_forces'], axis = 0) - np.sum(prediction['local_forces'], axis = 1)
         return prediction
 
-    def noise_optimization(self, features, e, f, bounds = [1e-10, 1e-2], maxiter=5, kfold=5):
+    def noise_optimization_old(self, features, e, f, bounds = [1e-10, 1e-2], maxiter=5, kfold=5):
         noises = np.array([bounds, bounds])
         print("Noise Optimization")
         for i in progressbar(np.arange(maxiter)):
@@ -112,6 +112,25 @@ class LinearPotential(object):
         self.f_noise = logmean(noises[1, 0], noises[1, 1])
         print(f"Energy noise: {self.e_noise}, Force noise: {self.f_noise}")
 
+    def noise_optimization(self,features,e,f,bounds = [1e-10,1e-4],kfold=8,points=6):
+        print("Noise Optimization")
+        best_en = 1000
+        best_fn = 1000
+        best_loss = 9999
+        for en in np.logspace(bounds[0],bounds[1],points):
+            for fn in np.logspace(bounds[0],bounds[1],points):
+                loss = kfold_validation(features, e, f, en, fn, kfold)
+                if loss<best_loss:
+                    best_en = en
+                    best_fn = fn
+                    best_loss = loss
+        self.e_noise = best_en
+        self.f_noise = best_fn
+        if best_en or best_fn is in bounds:
+            print("Achtung: your optimal reg could be outside of the bounds")
+        print(f"Energy noise: {self.e_noise}, Force noise: {self.f_noise}")
+
+            
 
 def logmean(a, b):
     return np.exp(0.5*np.log(a) + 0.5*np.log(b))
