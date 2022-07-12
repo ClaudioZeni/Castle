@@ -47,7 +47,14 @@ class ExpandedPotential(object):
             dX_ds_t = self.project_dx_ds(features.dX_ds)
 
         if self.activation == 'sigmoid':
-            return self.sigmoid(features, X_t, dX_dr_t, dX_ds_t, forces=forces, stress=stress)
+            X_t, dX_dr_t, dX_ds_t =  self.sigmoid(features, X_t, dX_dr_t, dX_ds_t, forces=forces, stress=stress)
+            
+        X_t = np.concatenate([features.X, X_t], axis = -1)
+        if forces:
+            dX_dr_t = np.concatenate([features.dX_dr, dX_dr_t], axis = -1)
+        if stress:
+            dX_ds_t = np.concatenate([features.dX_ds, dX_ds_t], axis = -1)
+        return X_t, dX_dr_t, dX_ds_t
 
     def fit(self, traj, e_noise=1e-8, f_noise=1e-8, features=None, 
             noise_optimization=False, iterations=1, kfold=5):
