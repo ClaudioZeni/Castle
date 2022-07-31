@@ -26,10 +26,10 @@ class LinearPotential(object):
         self.f_noise = f_noise
 
         if f is None:
-            X_tot = features.X
-            Y_tot = e
+            self.X_tot = features.X
+            self.Y_tot = e
         else:
-            X_tot = np.concatenate(
+            self.X_tot = np.concatenate(
                 (
                     features.X,
                     features.dX_dr[:, 0, :],
@@ -37,24 +37,61 @@ class LinearPotential(object):
                     features.dX_dr[:, 2, :],
                 ),
                 axis=0)
-            Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
+            self.Y_tot = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
 
             if additional_local_dX_dr is not None and additional_f is not None:
-                X_tot = np.concatenate((X_tot, additional_local_dX_dr[:, 0, :], 
+                self.X_tot = np.concatenate((self.X_tot, additional_local_dX_dr[:, 0, :], 
                 additional_local_dX_dr[:, 1, :], additional_local_dX_dr[:, 2, :]))
-                Y_tot = np.concatenate((Y_tot, additional_f[:, 0], additional_f[:, 1], additional_f[:, 2]), axis=0)
+                self.Y_tot = np.concatenate((self.Y_tot, additional_f[:, 0], additional_f[:, 1], additional_f[:, 2]), axis=0)
 
         # ftf shape is (S, S)
-        gtg = np.einsum("na, nb -> ab", X_tot, X_tot)
+        self.gtg = np.einsum("na, nb -> ab", self.X_tot, self.X_tot)
         # Calculate fY
-        gY = np.einsum("na, n -> a", X_tot, Y_tot)
+        self.gY = np.einsum("na, n -> a", self.X_tot, self.Y_tot)
         # Add regularization
         if noise_optimization:
             self.noise_optimization(features, e, f)
-        noise = self.e_noise*np.ones(len(gtg))
-        noise[len(e):] = self.f_noise
-        gtg[np.diag_indices_from(gtg)] += noise
-        alpha, _, _, _ = np.linalg.lstsq(gtg, gY, rcond=None)
+        self.noise_vector = self.e_noise*np.ones(len(self.gtg))
+        self.noise_vector[len(e):] = self.f_noise
+        gtg_with_noise = [self.gtg][0]
+        gtg_with_noise[np.diag_indices_from(gtg_with_noise)] += self.noise_vector
+        alpha, _, _, _ = np.linalg.lstsq(gtg_with_noise, self.gY, rcond=None)
+        self.alpha = alpha
+
+    def update(self, traj, features=None):
+        e = np.array([t.info[self.representation.energy_name] for t in traj])
+        if self.representation.force_name is not None:
+            f = []
+            [f.extend(t.get_array(self.representation.force_name)) for t in traj]
+            f = np.array(f)
+        else:
+            f = None
+        if features is None:
+            features = self.representation.transform(traj, verbose=True)
+        self.update_from_features(features, e, f)
+
+    def update_from_features(self, features, e, f=None):
+        if f is None:
+            X_up = features.X
+            Y_up = e
+        else:
+            X_up = np.concatenate(
+                (
+                    features.X,
+                    features.dX_dr[:, 0, :],
+                    features.dX_dr[:, 1, :],
+                    features.dX_dr[:, 2, :],
+                ),
+                axis=0)
+            Y_up = np.concatenate((e, f[:, 0], f[:, 1], f[:, 2]), axis=0)
+
+        gtg_up = np.einsum("na, nb -> ab", X_up, X_up)
+        gY_up = np.einsum("na, n -> a", X_up, Y_up)
+        self.gY += gY_up
+        self.gtg += gtg_up
+        gtg_with_noise = [self.gtg][0]
+        gtg_with_noise[np.diag_indices_from(gtg_with_noise)] += self.noise_vector
+        alpha, _, _, _ = np.linalg.lstsq(gtg_with_noise, self.gY, rcond=None)
         self.alpha = alpha
 
     def predict(self, atoms, forces=True, stress=False, features=None):

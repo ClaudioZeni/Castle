@@ -43,66 +43,77 @@ class Clustering(object):
         """
         print("Clustering data")
         if self.clustering_type == 'e_gmm':
-            # Resize X based only on global std and energy std, separately
-            # So that e is comparable to X but we do not lose information
-            # on the magnitude of each component of X.
-            mean = np.mean(X, axis=0)
-            std = np.std(X)
-            X_ = (X - mean[None, :]) / std[None, None]
-            e = (e - np.mean(e)) / np.std(e)
-            X_ = np.concatenate((X_, e[:, None]), axis=1)
-            if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X_, GaussianMixture(n_init=5, reg_covar=1e-2))
-            else:
-                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X_)
-            self.n_clusters = model.n_components
-            self.labels = model.predict(X_)
-            self.weights = model.weights_
-            self.centers = model.means_[:, :-1] * std + mean[None, :]
-            self.precisions = model.precisions_[:, :-1, :-1] / std / X.shape[1]  # The last factor is added by hand to improve smoothness
-            self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
-
+            self.cluster_egmm(X, e, n_clusters)
         elif self.clustering_type == 'gmm':
-            if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
-            else:
-                model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
-            self.n_clusters = model.n_components
-            self.labels = model.predict(X)
-            self.weights = model.weights_
-            self.centers = model.means_ 
-            self.precisions = model.precisions_ / X.shape[1]  # The last factor is added by hand to improve smoothness
-            self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
-
+            self.cluster_gmm(X, n_clusters)
         elif self.clustering_type == 'kmeans':
-            if n_clusters == 'auto':
-                model = self.optimize_n_clusters(X, KMeans())
-            else:
-                model = KMeans(n_clusters=n_clusters).fit(X)
-            self.n_clusters = model.n_clusters
-            self.labels = model.predict(X)
-            self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
-            self.centers = model.cluster_centers_ 
-            self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
-            self.cov_dets = None
-
+            self.cluster_knn(X, n_clusters)
         elif self.clustering_type == 'adp':
-            from dadapy import Data
-            self.mean = np.mean(X, axis=0)
-            self.std = np.std(X, axis=0)
-            X_ = (X - self.mean[None, :]) / self.std[None, :]
-            data = Data(X_)
-            data.compute_clustering_ADP(halo=False)
-            self.n_clusters = data.N_clusters
-            self.labels = data.cluster_assignment
-            self.data = data
+            self.cluster_adp(X)
+        else:
+            print("Clustering Type not understood. Defaulting to kmeans")
+            self.cluster_knn(X, n_clusters)
 
         if self.baseline_percentile > 0:
             self.get_baseline_hyperparameter(X)
         else:
             self.baseline_prob = 0
-
         print(f"Using {self.n_clusters} clusters")
+
+    def cluster_egmm(self, X, e, n_clusters):
+        # Resize X based only on global std and energy std, separately
+        # So that e is comparable to X but we do not lose information
+        # on the magnitude of each component of X.
+        mean = np.mean(X, axis=0)
+        std = np.std(X)
+        X_ = (X - mean[None, :]) / std[None, None]
+        e = (e - np.mean(e)) / np.std(e)
+        X_ = np.concatenate((X_, e[:, None]), axis=1)
+        if n_clusters == 'auto':
+            model = self.optimize_n_clusters(X_, GaussianMixture(n_init=5, reg_covar=1e-2))
+        else:
+            model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X_)
+        self.n_clusters = model.n_components
+        self.labels = model.predict(X_)
+        self.weights = model.weights_
+        self.centers = model.means_[:, :-1] * std + mean[None, :]
+        self.precisions = model.precisions_[:, :-1, :-1] / std / X.shape[1]  # The last factor is added by hand to improve smoothness
+        self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
+
+    def cluster_gmm(self, X, n_clusters):
+        if n_clusters == 'auto':
+            model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
+        else:
+            model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
+        self.n_clusters = model.n_components
+        self.labels = model.predict(X)
+        self.weights = model.weights_
+        self.centers = model.means_ 
+        self.precisions = model.precisions_ / X.shape[1]  # The last factor is added by hand to improve smoothness
+        self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
+
+    def cluster_knn(self, X, n_clusters):
+        if n_clusters == 'auto':
+            model = self.optimize_n_clusters(X, KMeans())
+        else:
+            model = KMeans(n_clusters=n_clusters).fit(X)
+        self.n_clusters = model.n_clusters
+        self.labels = model.predict(X)
+        self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
+        self.centers = model.cluster_centers_ 
+        self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+        self.cov_dets = None
+    
+    def cluster_adp(self, X):
+        from dadapy import Data
+        self.mean = np.mean(X, axis=0)
+        self.std = np.std(X, axis=0)
+        X_ = (X - self.mean[None, :]) / self.std[None, :]
+        data = Data(X_)
+        data.compute_clustering_ADP(halo=False)
+        self.n_clusters = data.N_clusters
+        self.labels = data.cluster_assignment
+        self.data = data
 
     def get_baseline_hyperparameter(self, X):
         """

@@ -2,9 +2,10 @@ import numpy as np
 
 
 class GlobalFeatures(object):
-    def __init__(self, representation, X, dX_dr, dX_ds, strides, species):
+    def __init__(self, representation, X, X_std, dX_dr, dX_ds, strides, species):
         self.representation = representation
         self.X = X
+        self.X_std = X_std
         self.dX_dr = dX_dr
         self.dX_ds = dX_ds
         self.strides = strides
@@ -21,6 +22,7 @@ class GlobalFeatures(object):
         obj = GlobalFeatures(
             self.representation,
             self.X[ids],
+            self.X_std[ids],
             np.vstack(dX_dr_n),
             self.dX_ds[ids],
             np.cumsum(strides),

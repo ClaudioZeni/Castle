@@ -61,6 +61,7 @@ end;
 # Global : sum descriptor
 function sum_descriptor(shipB, at::AbstractAtoms{T}) where {T}
     E = zeros(fltype(shipB), length(shipB))
+    E_std = zeros(fltype(shipB), length(shipB))
     B = alloc_B(shipB)
     nlist = neighbourlist(at, cutoff(shipB))
     maxnR = maxneigs(nlist)
@@ -71,17 +72,21 @@ function sum_descriptor(shipB, at::AbstractAtoms{T}) where {T}
         fill!(B, 0)
         evaluate!(B, tmp, shipB, R, Z, at.Z[i])
         E[:] .+= B[:]
+        E_std[:] .+= B[:].^2
     end
-    return E
+    E_std[:] .-= E[:].^2
+    E_std[:] .= abs.(E_std[:]).^0.5
+    return E, E_std
 end
 
 function sum_descriptor_traj(basis, traj)
     A_all = Array{Float64,2}(undef, length(traj), length(basis)) 
+    A_all_std  = Array{Float64,2}(undef, length(traj), length(basis)) 
     for i in 1:length(traj)
         atoms = traj[i].at
-        A_all[i, :] = sum_descriptor(basis, atoms)
+        A_all[i, :], A_all_std[i, :] = sum_descriptor(basis, atoms)
     end
-    return A_all
+    return A_all, A_all_std
 end
 
 function sum_d_descriptor(shipB, at::AbstractAtoms{T}) where {T}
@@ -158,15 +163,15 @@ function predict_potential(ridge_pred, XE_tst, XF_tst)
 end
 
 function extract_info_traj(B, traj)
-    X = sum_descriptor_traj(B, traj);
+    X, X_std = sum_descriptor_traj(B, traj);
     dX_dr, dX_ds = sum_d_descriptor_traj(B, traj);
     
-    return X, dX_dr, dX_ds
+    return X, X_std, dX_dr, dX_ds
 end
 
 function extract_info_frame(B, frame)
-    X = sum_descriptor(B, frame);
+    X, X_std = sum_descriptor(B, frame);
     dX_dr, dX_ds = sum_d_descriptor(B, frame);
     
-    return X, dX_dr, dX_ds
+    return X, X_std, dX_dr, dX_ds
 end

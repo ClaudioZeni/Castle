@@ -1,5 +1,7 @@
 import numpy as np
 from .representation import progressbar
+from sklearn.decomposition import PCA
+
 
 class ExpandedPotential(object):
     def __init__(self, representation, D, activation='sigmoid'):
@@ -145,6 +147,7 @@ class ExpandedPotential(object):
             random_matrix = self.random_matrix
             force_rmse = []
             energy_rmse = []
+            assert kfold > 1, f"Kfold must be greater than 1, you passed: {kfold}"
             for k in np.arange(kfold):
                 (tr_features, val_features, e_tr, e_val, f_tr, 
                  f_val, nat_tr, nat_val) = get_subsets(features, e, f, ind, kfold, k)

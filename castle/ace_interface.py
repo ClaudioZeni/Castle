@@ -37,8 +37,8 @@ def frame_to_julia_at(frame, energy_name="energy",
 
 
 def descriptors_from_at(basis, at):
-    X, dX_dr, dX_ds = Main.extract_info_frame(basis, at.at)
-    return (X.T, np.transpose(np.array(dX_dr), (1, 2, 0)),
+    X, X_std, dX_dr, dX_ds = Main.extract_info_frame(basis, at.at)
+    return (X.T, X_std.T, np.transpose(np.array(dX_dr), (1, 2, 0)),
             np.transpose(np.array(dX_ds), (1, 2, 0)))
 
 
@@ -58,17 +58,17 @@ def descriptors_from_frame(basis, frame, species,
 
     at = frame_to_julia_at(frame, energy_name,
                            force_name, virial_name)
-    X, dX_dr, dX_ds = descriptors_from_at(basis, at)
+    X, X_std, dX_dr, dX_ds = descriptors_from_at(basis, at)
     dX_ds = dX_ds[matrix_indices_in_voigt_notation, :][:, 0, 0, :]
     X, dX_dr, dX_ds = add_onebody_term(frame, species, X, dX_dr, dX_ds)
-    return X, dX_dr, dX_ds
+    return X, X_std, dX_dr, dX_ds
 
 
 def descriptors_from_frame_no_forces(basis, frame, species, energy_name="energy"):
     at = frame_to_julia_at(frame, energy_name)
-    X = Main.sum_descriptor(basis, at.at)
+    X, X_std = Main.sum_descriptor(basis, at.at)
     X, _, __ = add_onebody_term(frame, species, X)
-    return X
+    return X, X_std
 
 
 def local_descriptors_from_frame(basis, frame, species,

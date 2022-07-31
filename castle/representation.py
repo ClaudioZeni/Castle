@@ -31,20 +31,20 @@ class AceRepresentation(object):
         self.force_name = force_name
         self.virial_name = virial_name
         if not hasattr(self, "basis"):
-            self.basis, self.n_feat = get_basis(
+            self.basis, self.n_original_feat = get_basis(
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
-            self.n_feat += len(self.species)
+            self.n_feat = self.n_original_feat + len(self.species)
         self.add_sqrt = add_sqrt
         if add_sqrt:
             self.n_feat = 2*self.n_feat - len(self.species)
 
     def transform(self, frames, compute_derivative=True, verbose=False):
         if not hasattr(self, "basis"):
-            self.basis, self.n_feat = get_basis(
+            self.basis, self.n_original_feat = get_basis(
                 self.N, self.maxdeg, self.rcut, self.species,
                 self.r0,  self.rin, self.constants)
-            self.n_feat += len(self.species)
+            self.n_feat = self.n_original_feat + len(self.species)
             if self.add_sqrt:
                 self.n_feat = 2*self.n_feat - len(self.species)
         if not isinstance(frames, list):
@@ -58,6 +58,7 @@ class AceRepresentation(object):
 
         strides = np.cumsum(strides)
         X = np.zeros((n_frames, self.n_feat))
+        X_std = np.zeros((n_frames, self.n_original_feat))
         if compute_derivative:
             dX_dr = np.zeros((n_atoms, 3, self.n_feat))
             dX_ds = np.zeros((n_frames, 6, self.n_feat))
@@ -67,6 +68,7 @@ class AceRepresentation(object):
                 st, nd = strides[i_frame], strides[i_frame + 1]
                 (
                     X[i_frame],
+                    X_std[i_frame],
                     dX_dr[st:nd],
                     dX_ds[i_frame],
                 ) = self._get_global_representation(self.basis, frame)
@@ -76,12 +78,12 @@ class AceRepresentation(object):
                     self.basis, frame)
 
         if compute_derivative:
-            return GlobalFeatures(self, X, dX_dr, dX_ds, strides, self.species)
+            return GlobalFeatures(self, X, X_std, dX_dr, dX_ds, strides, self.species)
         else:
-            return GlobalFeatures(self, X, None, None, strides, self.species)
+            return GlobalFeatures(self, X, X_std, None, None, strides, self.species)
 
     def _get_global_representation(self, basis, frame):
-        X, dX_dr_global, dX_ds_global = descriptors_from_frame(basis, frame, self.species,
+        X, X_std, dX_dr_global, dX_ds_global = descriptors_from_frame(basis, frame, self.species,
                                                                self.energy_name,
                                                                self.force_name,
                                                                self.virial_name)
@@ -95,14 +97,14 @@ class AceRepresentation(object):
             dX_dr_global = np.concatenate((dX_dr_sqrt, dX_dr_global), axis = -1)
             dX_ds_global = np.concatenate((dX_ds_sqrt, dX_ds_global), axis = -1)
 
-        return X, dX_dr_global, dX_ds_global
+        return X, X_std, dX_dr_global, dX_ds_global
 
     def _get_global_representation_no_forces(self, basis, frame):
-        X = descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
+        X, X_std = descriptors_from_frame_no_forces(basis, frame, self.species, self.energy_name)
         if self.add_sqrt:
             X_sqrt = abs(X[:-len(self.species)])**0.5
             X = np.concatenate((X_sqrt, X))
-        return X
+        return X, X_std
 
     def transform_local(self, frames, compute_derivative=True, verbose=False):
         if not hasattr(self, "basis"):
