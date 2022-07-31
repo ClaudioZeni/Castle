@@ -62,6 +62,42 @@ class LPEnsemble(object):
         self.potentials = potentials
         self.alphas = np.array([self.potentials[i].alpha for i in range(len(self.potentials))])
 
+    def update(self, traj, features=None):
+        if self.baseline_calculator:
+            # TODO: add baseline handling
+            pass
+
+        e = np.array([t.info[self.representation.energy_name] for t in traj])
+        if self.representation.force_name is not None:
+            f = []
+            [f.extend(t.get_array(self.representation.force_name)) for t in traj]
+            f = np.array(f)
+        else:
+            f = None
+        if features is None:
+            features = self.representation.transform(traj, verbose=True)
+        self.uupdate_from_features(features, e, f)
+
+    def uupdate_from_features(self, features, e, f=None):
+        nat = features.get_nb_atoms_per_frame()
+        nsp = len(self.representation.species)
+        weights = self.clustering.get_models_weight(features.X[:, :-nsp] / nat[:, None])['energy']
+        labels = np.argmax(weights, axis = 1)
+
+        if self.e_b is not None:
+            # TODO: add baseline handling
+            pass
+
+        potentials = {}
+        structure_ids = np.arange(len(features))
+        for lab in list(set(labels)):
+            mask = labels == lab
+            features_ = features.get_subset(structure_ids[mask])
+            fmask = np.zeros(0, dtype="bool")
+            for i in np.arange(len(nat)):
+                fmask = np.append(fmask, np.array([mask[i]] * nat[i]))
+            potentials[lab].update_from_features(features_, e[mask], f[fmask])
+
     def compute_baseline_predictions(self, traj):
         print("Computing Baseline Predictions")
         e_b = []
