@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 from .representation import progressbar
 
+
 class LinearPotential(object):
     def __init__(self, representation):
         self.representation = representation
@@ -51,11 +52,10 @@ class LinearPotential(object):
         # Add regularization
         if noise_optimization:
             self.noise_optimization(features, e, f)
-        self.noise_vector = self.e_noise*np.ones(len(self.gtg))
-        self.noise_vector[len(e):] = self.f_noise
-        gtg_with_noise = [self.gtg][0]
-        gtg_with_noise[np.diag_indices_from(gtg_with_noise)] += self.noise_vector
-        alpha, _, _, _ = np.linalg.lstsq(gtg_with_noise, self.gY, rcond=None)
+        noise_vector = self.e_noise*np.ones(len(self.gtg))
+        noise_vector[len(e):] = self.f_noise
+        self.gtg[np.diag_indices_from(self.gtg)] += noise_vector
+        alpha, _, _, _ = np.linalg.lstsq(self.gtg, self.gY, rcond=None)
         self.alpha = alpha
 
     def update(self, traj, features=None):
@@ -89,9 +89,10 @@ class LinearPotential(object):
         gY_up = np.einsum("na, n -> a", X_up, Y_up)
         self.gY += gY_up
         self.gtg += gtg_up
-        gtg_with_noise = [self.gtg][0]
-        gtg_with_noise[np.diag_indices_from(gtg_with_noise)] += self.noise_vector
-        alpha, _, _, _ = np.linalg.lstsq(gtg_with_noise, self.gY, rcond=None)
+        noise_vector = self.e_noise*np.ones(len(self.gtg))
+        noise_vector[len(e):] = self.f_noise
+        self.gtg[np.diag_indices_from(self.gtg)] += noise_vector
+        alpha, _, _, _ = np.linalg.lstsq(self.gtg, self.gY, rcond=None)
         self.alpha = alpha
 
     def predict(self, atoms, forces=True, stress=False, features=None):

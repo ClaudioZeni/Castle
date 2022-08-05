@@ -4,10 +4,14 @@ castle/__init__.py
 castle/ace_interface.py
 castle/calc_ase_interface.py
 castle/clustering.py
+castle/expanded_potential.py
 castle/features.py
 castle/linear_potential.py
+castle/local_clustering.py
 castle/lp_ensamble.py
+castle/lp_local_ensemble.py
 castle/representation.py
+castle/resampling_uncertainty.py
 castle/utils.py
 castle.egg-info/PKG-INFO
 castle.egg-info/SOURCES.txt
