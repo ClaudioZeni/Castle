@@ -1,7 +1,7 @@
 import julia
 import numpy as np
 
-JULIA_UTILS_PATH = "/home/claudio/Castle/castle/julia_utils.jl"
+JULIA_UTILS_PATH = "/home/claudio/postdoc/Castle/castle/julia_utils.jl"
 
 jl = julia.Julia(compiled_modules=False)
 from julia import Main

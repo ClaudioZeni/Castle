@@ -25,13 +25,13 @@ class Clustering(object):
         print("Using %i clusters" %(nopt))
         return model
 
-    def fit(self, X, e, n_clusters='auto'):
+    def fit(self, X_avg, e, n_clusters='auto'):
         """Auxiliary function that calls the correct clustering
             algorithm. Options are: kmeans clustering and advanced
             density peaks clustering. If the latter is chosen, the
             adp python package must be installed first.
         Args:
-            X (np.array): Descriptor vector for each atom in each structure
+            X_avg (np.array): Average descriptor vector for each structure
             e (np.array): Per-atom energy of each structure
             n_clusters (float): Number of clusters
             clustering (str): Clustering algorithm to use
@@ -43,30 +43,31 @@ class Clustering(object):
         """
         print("Clustering data")
         if self.clustering_type == 'e_gmm':
-            self.cluster_egmm(X, e, n_clusters)
+            self.cluster_egmm(X_avg, e, n_clusters)
         elif self.clustering_type == 'gmm':
-            self.cluster_gmm(X, n_clusters)
+            self.cluster_gmm(X_avg, n_clusters)
         elif self.clustering_type == 'kmeans':
-            self.cluster_knn(X, n_clusters)
+            self.cluster_knn(X_avg, n_clusters)
         elif self.clustering_type == 'adp':
-            self.cluster_adp(X)
+            self.cluster_adp(X_avg)
         else:
             print("Clustering Type not understood. Defaulting to kmeans")
-            self.cluster_knn(X, n_clusters)
+            self.clustering_type == 'kmeans'
+            self.cluster_knn(X_avg, n_clusters)
 
         if self.baseline_percentile > 0:
-            self.get_baseline_hyperparameter(X)
+            self.get_baseline_hyperparameter(X_avg)
         else:
             self.baseline_prob = 0
         print(f"Using {self.n_clusters} clusters")
 
-    def cluster_egmm(self, X, e, n_clusters):
+    def cluster_egmm(self, X_avg, e, n_clusters):
         # Resize X based only on global std and energy std, separately
         # So that e is comparable to X but we do not lose information
         # on the magnitude of each component of X.
-        mean = np.mean(X, axis=0)
-        std = np.std(X)
-        X_ = (X - mean[None, :]) / std[None, None]
+        mean = np.mean(X_avg, axis=0)
+        std = np.std(X_avg)
+        X_ = (X_avg - mean[None, :]) / std[None, None]
         e = (e - np.mean(e)) / np.std(e)
         X_ = np.concatenate((X_, e[:, None]), axis=1)
         if n_clusters == 'auto':
@@ -80,40 +81,43 @@ class Clustering(object):
         self.precisions = model.precisions_[:, :-1, :-1] / std / X.shape[1]  # The last factor is added by hand to improve smoothness
         self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
-    def cluster_gmm(self, X, n_clusters):
+    def cluster_gmm(self, X_avg, n_clusters):
         if n_clusters == 'auto':
-            model = self.optimize_n_clusters(X, GaussianMixture(n_init=5, reg_covar=1e-2))
+            model = self.optimize_n_clusters(X_avg, GaussianMixture(n_init=5, reg_covar=1e-2))
         else:
             model = GaussianMixture(n_components=n_clusters, n_init=5, reg_covar=1e-2).fit(X)
         self.n_clusters = model.n_components
-        self.labels = model.predict(X)
+        self.labels = model.predict(X_avg)
         self.weights = model.weights_
         self.centers = model.means_ 
-        self.precisions = model.precisions_ / X.shape[1]  # The last factor is added by hand to improve smoothness
+        self.precisions = model.precisions_ / X_avg.shape[1]  # The last factor is added by hand to improve smoothness
         self.cov_dets = np.array([1/np.linalg.det(self.precisions[i]) for i in range(len(self.weights))])
 
-    def cluster_knn(self, X, n_clusters):
+    def cluster_knn(self, X_avg, n_clusters):
         if n_clusters == 'auto':
-            model = self.optimize_n_clusters(X, KMeans())
+            model = self.optimize_n_clusters(X_avg, KMeans())
         else:
-            model = KMeans(n_clusters=n_clusters).fit(X)
+            model = KMeans(n_clusters=n_clusters).fit(X_avg)
         self.n_clusters = model.n_clusters
-        self.labels = model.predict(X)
+        self.labels = model.predict(X_avg)
         self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
         self.centers = model.cluster_centers_ 
-        self.precisions = 1/np.array([np.std(X[self.labels == i], axis = 0) for i in range(self.n_clusters)])
-        self.cov_dets = None
+        self.precisions = 1/np.array([np.std(X_avg[self.labels == i], axis = 0) for i in range(self.n_clusters)])
     
-    def cluster_adp(self, X):
+    def cluster_adp(self, X_avg):
         from dadapy import Data
-        self.mean = np.mean(X, axis=0)
-        self.std = np.std(X, axis=0)
-        X_ = (X - self.mean[None, :]) / self.std[None, :]
-        data = Data(X_)
-        data.compute_clustering_ADP(halo=False)
+        self.mean = np.mean(X_avg, axis=0)
+        self.std = np.std(X_avg, axis=0)
+        X_avg_normed = (X_avg - self.mean[None, :]) / self.std[None, :]
+        data = Data(X_avg_normed)
+        data.compute_clustering_ADP(10, halo=False)
         self.n_clusters = data.N_clusters
         self.labels = data.cluster_assignment
         self.data = data
+
+        self.centers = np.array([np.mean(X_avg[self.labels == i], axis = 0) for i in range(self.n_clusters)])
+        self.weights = np.array([len(self.labels == i) for i in range(self.n_clusters)])
+        self.precisions = 1/np.array([np.std(X_avg[self.labels == i], axis = 0) for i in range(self.n_clusters)])
 
     def get_baseline_hyperparameter(self, X):
         """
@@ -144,11 +148,11 @@ class Clustering(object):
         if self.clustering_type == 'gmm' or self.clustering_type == 'e_gmm':
             return self.get_models_weight_gmm(X_avg, dX_dr, dX_ds, forces, stress)
 
-        elif self.clustering_type == 'kmeans':
+        elif self.clustering_type == 'kmeans' or self.clustering_type == 'adp':
             return self.get_models_weight_kmeans(X_avg, dX_dr, dX_ds, forces, stress)
 
-        elif self.clustering_type == 'adp':
-            return self.get_models_weight_adp(X_avg, dX_dr, dX_ds, forces, stress)
+        # elif self.clustering_type == 'adp':
+        #     return self.get_models_weight_adp(X_avg, dX_dr, dX_ds, forces, stress)
 
     def get_models_weight_kmeans(self, X_avg, dX_dr=None, dX_ds=None, forces=False, stress=False):
         """Compute weight (and derivative w.r.t. each atom's position)
@@ -164,7 +168,6 @@ class Clustering(object):
         self.centers : (s, d) 
         self.precisions : (s, d) 
         self.weights : (s)
-        self.cov_dets : (s)
         proba: (s)
         single_proba_force: (s, m, c)
         softmax_der: (s, s)
