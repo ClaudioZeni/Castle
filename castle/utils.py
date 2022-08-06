@@ -204,7 +204,7 @@ def extract_local_features(folder, train_filename, validation_filename=None,
 
     tr_features = representation.transform_local(tr_frames, compute_derivative, verbose=True)
     if validation_filename is not None:
-        val_features = representation.transform_local(tr_frames, compute_derivative, verbose=True)
+        val_features = representation.transform_local(val_frames, compute_derivative, verbose=True)
         print("WARNING: saving features is not available for local features")
         return tr_features, val_features
     	
