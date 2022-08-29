@@ -138,11 +138,14 @@ class LPEnsemble(object):
         if stress:
             prediction['stress'] = np.zeros((len(features.X), 6))
         nat_counter = 0
+
+        self.predicted_weights = np.zeros((len(features), self.n_clusters))
         for i in np.arange(len(features)):
             feat = features.get_subset([i])
             norm_feat = feat.X[0] / nat[i]
             weights = self.clustering.get_models_weight(norm_feat[..., :-nsp], feat.dX_dr[..., :-nsp], 
                                                         feat.dX_ds[..., :-nsp], forces=forces, stress=stress)
+            self.predicted_weights[i] = weights['energy']
             if forces:
                 # First part of the force component, easy
                 f_1 = np.einsum("mcd, sd, s -> mc",
