@@ -113,12 +113,17 @@ class LPEnsemble(object):
         self.e_b = e_b
         self.f_b = f_b
 
-    def predict(self, atoms, forces=True, stress=False, features=None):
+    def predict(self, atoms, forces=True, stress=False, features=None, debug_mode=False):
         at = atoms.copy()
         at.wrap(eps=1e-11)
         if features is None:
             features = self.representation.transform([at])
-        prediction = self.predict_from_features(features, forces, stress)
+
+        if debug_mode:
+            prediction = self.predict_from_features_debug_mode(features, forces, stress)
+        else:
+            prediction = self.predict_from_features(features, forces, stress)
+
         if self.baseline_calculator is not None:
             at.set_calculator(self.baseline_calculator)
             prediction['energy'] += at.get_potential_energy()
@@ -175,3 +180,64 @@ class LPEnsemble(object):
         if prediction['energy'].shape[0] == 1 and stress:
             prediction['stress'] = prediction['stress'][0]
         return prediction
+
+
+    def predict_from_features_debug_mode(self, features, forces=False, stress=False):
+        prediction = {}
+        prediction_breakdown = {}
+        nat = features.get_nb_atoms_per_frame()
+        nsp = len(self.representation.species)
+        prediction_breakdown['energy'] = np.zeros((self.n_clusters, len(features.X)))
+        prediction['energy'] = np.zeros(len(features.X))
+
+        if forces:
+            prediction['forces'] = np.zeros(features.dX_dr.shape[:2])
+            prediction_breakdown['forces'] = np.zeros((self.n_clusters, features.dX_dr.shape[0], features.dX_dr.shape[1]))
+        if stress:
+            prediction['stress'] = np.zeros((len(features.X), 6))
+            prediction_breakdown['stress'] = np.zeros((self.n_clusters, len(features.X), 6))
+
+        nat_counter = 0
+
+        all_weights = np.zeros((len(features), self.n_clusters))
+        for i in np.arange(len(features)):
+            feat = features.get_subset([i])
+            norm_feat = feat.X[0] / nat[i]
+            weights = self.clustering.get_models_weight(norm_feat[..., :-nsp], feat.dX_dr[..., :-nsp], 
+                                                        feat.dX_ds[..., :-nsp], forces=forces, stress=stress)
+            self.predicted_weights[i] = weights['energy']
+            if forces:
+                # First part of the force component, easy
+                f_1 = np.einsum("mcd, sd, s -> mc",
+                                feat.dX_dr, self.alphas, weights['energy'])
+                
+                # Descriptor multiplied by the derivative of the weights, not sure about the sign
+                f_2 = np.einsum("d, sd, msc -> mc", norm_feat, self.alphas, weights['forces']) 
+
+                prediction['forces'][nat_counter:nat_counter+nat[i]] = f_1 - f_2
+                prediction_breakdown['forces'][:, nat_counter:nat_counter+nat[i]] = np.einsum("mcd, sd -> smc", feat.dX_dr, self.alphas)
+            
+            if stress:
+                # First part of the force component, easy   
+                s_1 = np.einsum("cd, sd, s -> c",
+                                feat.dX_ds[0], self.alphas, weights['energy'])
+                
+                # Descriptor multiplied by the derivative of the weights, not sure about the sign
+                s_2 = np.einsum("d, sd, sc -> c", norm_feat, self.alphas, weights['stress']) 
+
+                prediction['stress'][i] = s_1 - s_2
+                prediction_breakdown['stress'][:, i] = np.einsum("cd, sd -> sc", feat.dX_ds[0], self.alphas)
+
+            nat_counter += nat[i]
+
+            prediction['energy'][i] = np.einsum("d, ld, l -> ", feat.X[0], self.alphas, 
+                                                 weights['energy'])
+
+            prediction_breakdown['energy'][:, i] = np.einsum('d, ld-> l', feat.X[0], self.alphas)
+
+
+        # Dumb hotfix because ASE wants stress to be shape (6) and not (1, 6)
+        if prediction['energy'].shape[0] == 1 and stress:
+            prediction['stress'] = prediction['stress'][0]
+            
+        return prediction, prediction_breakdown, all_weights
